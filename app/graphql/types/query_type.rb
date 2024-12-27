@@ -28,5 +28,16 @@ module Types
     def hello
       "Hello, world!"
     end
+
+
+    # New field: gameSession
+    field :game_session, Types::GameSessionType, null: true,
+      description: "Find a game session by its session code" do
+        argument :session_code, String, required: true
+      end
+
+    def game_session(session_code:)
+      GameSession.find_by(session_code: session_code)
+    end
   end
 end
