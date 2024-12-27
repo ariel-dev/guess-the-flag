@@ -5,7 +5,12 @@ module Types
 
     field :id, ID, null: false
     field :prompt, String, null: false
-    field :image_url, String, null: true
+    field :flag, Types::FlagType, null: false
     field :choices, [Types::ChoiceType], null: false
+    field :image_url, String, null: false
+
+    def image_url
+      object.flag.image_url
+    end
   end
 end

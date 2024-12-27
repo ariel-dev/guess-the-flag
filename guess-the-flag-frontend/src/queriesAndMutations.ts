@@ -11,6 +11,9 @@ export const GET_GAME_SESSION = gql`
         id
         prompt
         imageUrl
+        flag {
+          imageUrl
+        }
         choices {
           id
           label
@@ -49,14 +52,16 @@ export const START_GAME = gql`
         currentQuestion {
           id
           prompt
-          imageUrl
+          flag {
+            imageUrl
+          }
           choices {
             id
             label
           }
         }
       }
-      success
+      errors
     }
   }
 `;
@@ -117,8 +122,8 @@ export const GET_CURRENT_QUESTION = gql`
 
 // Mutation to submit an answer
 export const SUBMIT_ANSWER = gql`
-  mutation SubmitAnswer($questionId: ID!, $answerId: ID!) {
-    submitAnswer(questionId: $questionId, answerId: $answerId) {
+  mutation SubmitAnswer($questionId: ID!, $answerId: ID!, $playerId: ID!) {
+    submitAnswer(questionId: $questionId, answerId: $answerId, playerId: $playerId) {
       success
       correct
       updatedScore

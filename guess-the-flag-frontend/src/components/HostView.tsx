@@ -34,66 +34,81 @@ export default function HostView() {
   const [startGame, { loading: startingGame, error: startError }] = useMutation(START_GAME, {
     variables: { sessionCode },
     onCompleted: (data) => {
-      console.log('Game started:', data.startGame.gameSession);
+      if (data.startGame.errors?.length > 0) {
+        // Handle any errors returned from the mutation
+        console.error('Failed to start game:', data.startGame.errors);
+      } else {
+        console.log('Game started:', data.startGame.gameSession);
+        refetch();
+      }
     },
+    onError: (error) => {
+      console.error('Error starting game:', error);
+    }
   });
 
   const handleStartGame = () => {
+    if (!sessionCode) return;
     startGame();
   };
 
+  // Check if all players are ready
+  const allPlayersReady = sessionData?.gameSession?.players?.length > 0 && 
+    sessionData.gameSession.players.every((player: any) => player.ready);
+
   return (
-    <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-      <h2>Host View</h2>
+    <div className="card">
+      <h2 className="text-center mb-4">Host View</h2>
 
       {sessionCode ? (
-        <p>
-          Session Code: <strong>{sessionCode}</strong>
-        </p>
+        <div>
+          <div className="session-info mb-4">
+            <p>Session Code: <strong>{sessionCode}</strong></p>
+            <button 
+              onClick={() => navigator.clipboard.writeText(sessionCode)}
+              className="copy-button"
+            >
+              📋 Copy Code
+            </button>
+          </div>
+
+          {sessionData?.gameSession?.players && (
+            <div className="players-list card">
+              <h3>Players ({sessionData.gameSession.players.length})</h3>
+              {sessionData.gameSession.players.map((player: any) => (
+                <div key={player.id} className="player-item">
+                  <span>{player.name}</span>
+                  <span className={`status-dot ${player.ready ? 'ready' : 'not-ready'}`}>
+                    {player.ready ? '●' : '○'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button 
+            onClick={handleStartGame} 
+            disabled={startingGame || !allPlayersReady || sessionData?.gameSession?.players?.length === 0}
+            className="mt-4"
+          >
+            {startingGame ? 'Starting...' : 
+             sessionData?.gameSession?.players?.length === 0 ? 'Waiting for players...' :
+             !allPlayersReady ? 'Waiting for players to be ready...' : 
+             'Start Game'}
+          </button>
+        </div>
       ) : (
         <button onClick={handleCreateSession} disabled={creatingSession}>
           {creatingSession ? 'Creating...' : 'Create Session'}
         </button>
       )}
 
-      {/* Show any creation error */}
+      {/* Error handling */}
       {creationError && (
-        <p style={{ color: 'red' }}>Error creating session: {creationError.message}</p>
+        <p className="error">Error creating session: {creationError.message}</p>
       )}
-
-      {/* Once we have a session code, load session details */}
-      {sessionCode && (
-        <div style={{ marginTop: '1rem' }}>
-          {sessionLoading && <p>Loading session details...</p>}
-          {sessionError && (
-            <p style={{ color: 'red' }}>
-              Error loading session: {sessionError.message}
-            </p>
-          )}
-          {sessionData?.gameSession && (
-            <>
-              <h3>Connected Players</h3>
-              {sessionData.gameSession.players.length === 0 ? (
-                <p>No players yet.</p>
-              ) : (
-                <ul>
-                  {sessionData.gameSession.players.map((player: any) => (
-                    <li key={player.id}>
-                      {player.name} - Ready? {player.ready ? 'Yes' : 'No'}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button onClick={() => refetch()}>Refresh Player List</button>
-              <button onClick={handleStartGame} disabled={startingGame}>
-                {startingGame ? 'Starting Game...' : 'Start Game'}
-              </button>
-              {startError && (
-                <p style={{ color: 'red' }}>Error starting game: {startError.message}</p>
-              )}
-            </>
-          )}
-        </div>
+      {startError && (
+        <p className="error">Error starting game: {startError.message}</p>
       )}
     </div>
   );

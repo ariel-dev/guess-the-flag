@@ -12,7 +12,9 @@ type Choice = {
 type Question = {
   id: string;
   prompt: string;
-  imageUrl?: string;
+  flag: {
+    imageUrl: string;
+  };
   choices: Choice[];
 };
 
@@ -50,6 +52,7 @@ type SubmitAnswerData = {
 type SubmitAnswerVars = {
   questionId: string;
   answerId: string;
+  playerId: string;
 };
 
 interface GamePageProps {
@@ -61,6 +64,12 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
   const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null);
   const [timer, setTimer] = useState<number>(10); // 10 seconds countdown
   const [gameState, setGameState] = useState<'playing' | 'waiting' | 'results'>('playing');
+  const [answerFeedback, setAnswerFeedback] = useState<{
+    show: boolean;
+    correct: boolean;
+    score: number;
+  } | null>(null);
+  const [questionsRemaining, setQuestionsRemaining] = useState<number>(10);
 
   // Query to get the current game session and question
   const { data, loading, error, refetch } = useQuery<GameSessionData, GameSessionVars>(
@@ -79,8 +88,15 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
     onCompleted: (data) => {
       if (data.submitAnswer.success) {
         setGameState('waiting');
-        // Optionally, display if the answer was correct
-        alert(data.submitAnswer.correct ? 'Correct!' : 'Incorrect!');
+        setAnswerFeedback({
+          show: true,
+          correct: data.submitAnswer.correct,
+          score: data.submitAnswer.updatedScore
+        });
+        // Auto-hide feedback after 2.5 seconds
+        setTimeout(() => {
+          setAnswerFeedback(null);
+        }, 2500);
       }
     },
   });
@@ -101,17 +117,18 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
   // ActionCable Subscription for real-time updates
   const handleReceived = (response: any) => {
     const { event, data } = response;
+    console.log('Received event:', event, data);
+    
     if (event === 'next_question') {
-      // Reset state for next question
-      refetch();
       setSelectedAnswerId(null);
-      setTimer(10); // Reset timer
+      setTimer(10);
       setGameState('playing');
+      setAnswerFeedback(null);
+      setQuestionsRemaining(data.questions_remaining);
+      refetch();
     } else if (event === 'game_finished') {
-      // Handle game end, show scoreboard
       setGameState('results');
     }
-    // Handle other events as needed
   };
 
   // Handle answer submission
@@ -122,6 +139,7 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
       variables: {
         questionId: data.gameSession.currentQuestion.id,
         answerId: selectedAnswerId,
+        playerId: playerId
       },
     });
   };
@@ -136,18 +154,19 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
   }
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <h2>Game Page</h2>
-      <div>
+    <div className="card">
+      <h2 className="text-center mb-4">Game Page</h2>
+      <div className="mb-4">
         <p>Session Code: <strong>{sessionCode}</strong></p>
         <p>Your Name: <strong>{data.gameSession.players.find(p => p.id === playerId)?.name}</strong></p>
+        <p>Questions Remaining: <strong>{questionsRemaining}</strong></p>
       </div>
 
       {gameState === 'playing' && currentQuestion && (
         <div>
-          {currentQuestion.imageUrl && (
+          {currentQuestion.flag?.imageUrl && (
             <img
-              src={currentQuestion.imageUrl}
+              src={currentQuestion.flag.imageUrl}
               alt="Current Flag"
               style={{ maxWidth: '300px', marginBottom: '1rem' }}
             />
@@ -158,11 +177,7 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
               <button
                 key={choice.id}
                 onClick={() => setSelectedAnswerId(choice.id)}
-                style={{
-                  display: 'block',
-                  margin: '0.5rem 0',
-                  backgroundColor: selectedAnswerId === choice.id ? '#d3d3d3' : '#fff',
-                }}
+                className={`answer-button ${selectedAnswerId === choice.id ? 'selected' : ''}`}
               >
                 {choice.label}
               </button>
@@ -183,24 +198,40 @@ export default function GamePage({ sessionCode, playerId }: GamePageProps) {
       )}
 
       {gameState === 'waiting' && (
-        <div>
-          <p>Waiting for other players or for the next question...</p>
+        <div className="text-center">
+          <div className="card answer-feedback">
+            {answerFeedback?.show && (
+              <div className={`feedback-message ${answerFeedback.correct ? 'correct' : 'incorrect'}`}>
+                <div className="feedback-icon">
+                  {answerFeedback.correct ? '✓' : '✗'}
+                </div>
+                <h3>{answerFeedback.correct ? 'Correct!' : 'Incorrect!'}</h3>
+                <p className="score-update">
+                  Score: {answerFeedback.score} points
+                </p>
+              </div>
+            )}
+            <p className="mb-4">Waiting for next question...</p>
+            <div className="loading-spinner"></div>
+          </div>
         </div>
       )}
 
       {gameState === 'results' && (
-        <div>
-          <h3>Game Over!</h3>
-          <h4>Scoreboard:</h4>
-          <ul>
+        <div className="game-results">
+          <h3>Game Complete! 🎉</h3>
+          <h4>Final Scoreboard:</h4>
+          <div className="scoreboard">
             {data.gameSession.players
               .sort((a, b) => b.score - a.score)
-              .map((player) => (
-                <li key={player.id}>
-                  {player.name}: {player.score} points
-                </li>
+              .map((player, index) => (
+                <div key={player.id} className={`player-score ${player.id === playerId ? 'current-player' : ''}`}>
+                  <span className="rank">#{index + 1}</span>
+                  <span className="name">{player.name}</span>
+                  <span className="score">{player.score} points</span>
+                </div>
               ))}
-          </ul>
+          </div>
         </div>
       )}
 

@@ -1,12 +1,35 @@
 import React, { useState } from 'react';
-import { useMutation } from '@apollo/client';
-import { JOIN_GAME_SESSION, MARK_PLAYER_READY } from '../queriesAndMutations';
+import { useMutation, useQuery } from '@apollo/client';
+import { JOIN_GAME_SESSION, MARK_PLAYER_READY, GET_GAME_SESSION } from '../queriesAndMutations';
+import { ActionCableConsumer } from 'react-actioncable-provider';
+import GamePage from './GamePage';
 
 export default function PlayerView() {
   const [sessionCode, setSessionCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [player, setPlayer] = useState<any>(null); // store the joined player info
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [gameStarted, setGameStarted] = useState(false);
+
+  // Add query to check game status
+  const { data: sessionData, refetch } = useQuery(GET_GAME_SESSION, {
+    variables: { sessionCode },
+    skip: !player,
+    pollInterval: 5000, // Optional: poll every 5 seconds
+  });
+
+  // Add ActionCable handler
+  const handleReceived = (response: any) => {
+    const { event, data } = response;
+    console.log('Received event:', event, data); // Enhanced logging
+    if (event === 'game_started') {
+      console.log('Game started event received');
+      setGameStarted(true);
+      refetch(); // Refetch to get the latest game state
+    } else if (event === 'player_ready_toggled') {
+      refetch();
+    }
+  };
 
   // 1. Join Game Session mutation
   const [joinGameSession, { loading: joining, error: joinError }] = useMutation(
@@ -14,8 +37,12 @@ export default function PlayerView() {
     {
       onCompleted: (data) => {
         // store the returned player object
-        setPlayer(data.joinGameSession.player);
-        setErrorMessage(null); // Clear any previous error messages
+        if (data?.joinGameSession?.player) {
+          setPlayer(data.joinGameSession.player);
+          setErrorMessage(null);
+          // Refetch session data after joining
+          refetch();
+        }
       },
       onError: (error) => {
         setErrorMessage(error.message);
@@ -28,21 +55,37 @@ export default function PlayerView() {
     useMutation(MARK_PLAYER_READY, {
       onCompleted: (data) => {
         // update the local player state with new "ready" status
-        setPlayer(data.markPlayerReady.player);
+        if (data?.markPlayerReady?.player) {
+          setPlayer(data.markPlayerReady.player);
+          refetch(); // Refetch session data to update player list
+        }
       },
     });
 
   const handleJoin = () => {
-    if (!sessionCode.trim()) {
-      setErrorMessage('Session code cannot be empty.');
+    if (!sessionCode.trim() || !playerName.trim()) {
+      setErrorMessage('Both session code and player name are required.');
       return;
     }
 
     joinGameSession({
       variables: {
-        sessionCode,
-        playerName,
+        sessionCode: sessionCode.trim().toUpperCase(),
+        playerName: playerName.trim()
       },
+      onCompleted: (data) => {
+        if (data?.joinGameSession?.player) {
+          setPlayer(data.joinGameSession.player);
+          setErrorMessage(null);
+          // Refetch session data after joining
+          refetch();
+        } else {
+          setErrorMessage('Failed to join game session.');
+        }
+      },
+      onError: (error) => {
+        setErrorMessage(error.message);
+      }
     });
   };
 
@@ -52,58 +95,101 @@ export default function PlayerView() {
       variables: {
         playerId: player.id,
       },
+      onError: (error) => {
+        setErrorMessage(error.message);
+      },
     });
   };
 
+  // Only show GamePage when game has explicitly started
+  if (gameStarted && player) {
+    return <GamePage sessionCode={sessionCode} playerId={player.id} />;
+  }
+
+  // Show waiting room if player has joined (regardless of session active state)
   if (player) {
-    // Already joined
     return (
-      <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-        <h2>Player View</h2>
-        <p>
-          Joined session: <strong>{sessionCode}</strong>
-        </p>
-        <p>
-          You are <strong>{player.name}</strong>. Ready?{' '}
-          <strong>{player.ready ? 'Yes' : 'No'}</strong>
-        </p>
-        <button onClick={handleToggleReady} disabled={togglingReady}>
-          {togglingReady ? 'Updating...' : 'Toggle Ready'}
+      <div className="card">
+        <h2 className="text-center mb-4">Waiting Room</h2>
+        <div className="mb-4">
+          <p>Session Code: <strong>{sessionCode}</strong></p>
+          <p>Player Name: <strong>{player.name}</strong></p>
+          <div className={`status-badge ${player.ready ? 'ready' : 'not-ready'}`}>
+            {player.ready ? '✓ Ready' : '⌛ Not Ready'}
+          </div>
+        </div>
+
+        <button 
+          onClick={handleToggleReady} 
+          disabled={togglingReady}
+          className={`ready-button ${player.ready ? 'ready' : ''}`}
+        >
+          {togglingReady ? 'Updating...' : player.ready ? 'Mark as Not Ready' : 'Mark as Ready'}
         </button>
+
         {readyError && (
-          <p style={{ color: 'red' }}>Error toggling ready: {readyError.message}</p>
+          <p className="error">Error toggling ready: {readyError.message}</p>
         )}
+
+        {sessionData?.gameSession?.players && (
+          <div className="players-list card mt-4">
+            <h3 className="mb-4">Players in Room:</h3>
+            {sessionData.gameSession.players.map((p: any) => (
+              <div key={p.id} className="player-item">
+                <span>{p.name}</span>
+                <span className={`status-dot ${p.ready ? 'ready' : 'not-ready'}`}>
+                  {p.ready ? '●' : '○'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <ActionCableConsumer
+          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
+          onReceived={handleReceived}
+          onConnected={() => console.log('Connected to GameSessionChannel')}
+          onRejected={() => console.log('Rejected from GameSessionChannel')}
+        />
       </div>
     );
   }
 
   // Not yet joined => show form
   return (
-    <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-      <h2>Player View</h2>
-      <div>
-        <label>Session Code: </label>
+    <div className="card">
+      <h2 className="text-center mb-4">Join Game</h2>
+      <div className="form-group mb-4">
+        <label htmlFor="sessionCode">Session Code:</label>
         <input
+          id="sessionCode"
           value={sessionCode}
-          onChange={(e) => setSessionCode(e.target.value)}
-          placeholder="ABC123"
+          onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
+          placeholder="Enter session code"
+          className="form-input"
         />
       </div>
-      <div>
-        <label>Player Name: </label>
+      <div className="form-group mb-4">
+        <label htmlFor="playerName">Player Name:</label>
         <input
+          id="playerName"
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
-          placeholder="Alice"
+          placeholder="Enter your name"
+          className="form-input"
         />
       </div>
-      <button onClick={handleJoin} disabled={joining}>
-        {joining ? 'Joining...' : 'Join Session'}
+      <button 
+        onClick={handleJoin} 
+        disabled={joining || !sessionCode.trim() || !playerName.trim()}
+        className="primary-button"
+      >
+        {joining ? 'Joining...' : 'Join Game'}
       </button>
 
-      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
+      {errorMessage && <p className="error">{errorMessage}</p>}
       {joinError && (
-        <p style={{ color: 'red' }}>Error joining session: {joinError.message}</p>
+        <p className="error">Error joining session: {joinError.message}</p>
       )}
     </div>
   );

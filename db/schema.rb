@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_12_27_193302) do
+ActiveRecord::Schema[7.0].define(version: 2024_12_27_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -36,6 +36,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_12_27_193302) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "current_question_id"
+    t.integer "questions_count", default: 0, null: false
+    t.integer "max_questions", default: 10, null: false
     t.index ["current_question_id"], name: "index_game_sessions_on_current_question_id"
     t.index ["session_code"], name: "index_game_sessions_on_session_code", unique: true
   end
@@ -47,6 +49,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_12_27_193302) do
     t.bigint "game_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "has_answered", default: false, null: false
     t.index ["game_session_id"], name: "index_players_on_game_session_id"
   end
 

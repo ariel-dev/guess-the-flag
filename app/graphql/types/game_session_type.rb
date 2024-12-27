@@ -8,6 +8,8 @@ module Types
     field :active, Boolean, null: false
     field :players, [Types::PlayerType], null: false, description: "List of players in the game session."
     field :current_question, Types::QuestionType, null: true, description: "The current question being asked."
+    field :questions_count, Integer, null: false
+    field :max_questions, Integer, null: false
 
     def current_question
       object.current_question
