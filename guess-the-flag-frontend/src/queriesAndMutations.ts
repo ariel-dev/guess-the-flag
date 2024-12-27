@@ -1,4 +1,3 @@
-// src/queries.ts
 import { gql } from '@apollo/client';
 
 export const GET_GAME_SESSION = gql`
@@ -84,7 +83,6 @@ export const GET_FLAGS = gql`
   }
 `;
 
-// 1. Query to get the current question for a session
 export const GET_CURRENT_QUESTION = gql`
   query GetCurrentQuestion($sessionCode: String!) {
     getCurrentQuestion(sessionCode: $sessionCode) {
@@ -99,14 +97,11 @@ export const GET_CURRENT_QUESTION = gql`
   }
 `;
 
-// 2. Mutation to submit an answer
 export const SUBMIT_ANSWER = gql`
   mutation SubmitAnswer($questionId: ID!, $answerId: ID!) {
     submitAnswer(questionId: $questionId, answerId: $answerId) {
       success
       message
-      # Optionally return updated player or question state
     }
   }
 `;
-

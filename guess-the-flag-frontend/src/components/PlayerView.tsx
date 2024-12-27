@@ -1,4 +1,3 @@
-// src/components/PlayerView.tsx
 import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { JOIN_GAME_SESSION, MARK_PLAYER_READY } from '../queriesAndMutations';
@@ -7,6 +6,7 @@ export default function PlayerView() {
   const [sessionCode, setSessionCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [player, setPlayer] = useState<any>(null); // store the joined player info
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // 1. Join Game Session mutation
   const [joinGameSession, { loading: joining, error: joinError }] = useMutation(
@@ -15,6 +15,10 @@ export default function PlayerView() {
       onCompleted: (data) => {
         // store the returned player object
         setPlayer(data.joinGameSession.player);
+        setErrorMessage(null); // Clear any previous error messages
+      },
+      onError: (error) => {
+        setErrorMessage(error.message);
       },
     }
   );
@@ -29,6 +33,11 @@ export default function PlayerView() {
     });
 
   const handleJoin = () => {
+    if (!sessionCode.trim()) {
+      setErrorMessage('Session code cannot be empty.');
+      return;
+    }
+
     joinGameSession({
       variables: {
         sessionCode,
@@ -52,7 +61,7 @@ export default function PlayerView() {
       <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
         <h2>Player View</h2>
         <p>
-          Joined session: <strong>{player.gameSession.sessionCode}</strong>
+          Joined session: <strong>{sessionCode}</strong>
         </p>
         <p>
           You are <strong>{player.name}</strong>. Ready?{' '}
@@ -92,6 +101,7 @@ export default function PlayerView() {
         {joining ? 'Joining...' : 'Join Session'}
       </button>
 
+      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
       {joinError && (
         <p style={{ color: 'red' }}>Error joining session: {joinError.message}</p>
       )}
