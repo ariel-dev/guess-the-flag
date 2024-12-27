@@ -1,8 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { JOIN_GAME_SESSION, MARK_PLAYER_READY, GET_GAME_SESSION } from '../queriesAndMutations';
 import { ActionCableConsumer } from 'react-actioncable-provider';
 import GamePage from './GamePage';
+import { gql } from '@apollo/client';
+
+// Add a query to check if game session exists and is valid
+const CHECK_GAME_SESSION = gql`
+  query CheckGameSession($sessionCode: String!) {
+    gameSession(sessionCode: $sessionCode) {
+      id
+      active
+    }
+  }
+`;
 
 export default function PlayerView() {
   const [sessionCode, setSessionCode] = useState('');
@@ -10,24 +21,117 @@ export default function PlayerView() {
   const [player, setPlayer] = useState<any>(null); // store the joined player info
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // Add state for previous session
+  const [previousSession, setPreviousSession] = useState(() => {
+    // Check localStorage for previous session data
+    const saved = localStorage.getItem('previousSession');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Save session data when joining successfully
+  const saveSessionData = (sessionCode: string, player: any) => {
+    const sessionData = {
+      sessionCode,
+      playerId: player.id,
+      playerName: player.name
+    };
+    localStorage.setItem('previousSession', JSON.stringify(sessionData));
+    setPreviousSession(sessionData);
+  };
+
+  // Add query to check if previous session is still valid
+  const { data: previousSessionData, loading: checkingSession } = useQuery(CHECK_GAME_SESSION, {
+    variables: { sessionCode: previousSession?.sessionCode || '' },
+    skip: !previousSession,
+    onCompleted: (data) => {
+      if (!data?.gameSession) {
+        // Session no longer exists, clear it
+        localStorage.removeItem('previousSession');
+        setPreviousSession(null);
+      }
+    }
+  });
 
   // Add query to check game status
   const { data: sessionData, refetch } = useQuery(GET_GAME_SESSION, {
     variables: { sessionCode },
     skip: !player,
     pollInterval: 5000, // Optional: poll every 5 seconds
+    onCompleted: (data) => {
+      // If there's a current question and we're rejoining, set game as started
+      if (data?.gameSession?.currentQuestion && player) {
+        setGameStarted(true);
+      }
+    }
   });
+
+  // Handle joining existing session
+  const handleRejoin = () => {
+    if (!previousSession || !previousSessionData?.gameSession?.active) {
+      setErrorMessage('This game session is no longer available.');
+      localStorage.removeItem('previousSession');
+      setPreviousSession(null);
+      return;
+    }
+    
+    joinGameSession({
+      variables: {
+        sessionCode: previousSession.sessionCode,
+        playerName: previousSession.playerName,
+        existingPlayerId: previousSession.playerId
+      },
+      onCompleted: async (data) => {
+        if (data?.joinGameSession?.player) {
+          setPlayer(data.joinGameSession.player);
+          setSessionCode(previousSession.sessionCode);
+          setErrorMessage(null);
+          
+          // Fetch current game session state
+          const { data: currentSession } = await refetch();
+          // If there's a current question, set game as started immediately
+          if (currentSession?.gameSession?.currentQuestion) {
+            setGameStarted(true);
+          }
+        } else {
+          setErrorMessage('Failed to rejoin game session.');
+          localStorage.removeItem('previousSession');
+          setPreviousSession(null);
+        }
+      },
+      onError: (error) => {
+        setErrorMessage(error.message);
+        localStorage.removeItem('previousSession');
+        setPreviousSession(null);
+      }
+    });
+  };
 
   // Add ActionCable handler
   const handleReceived = (response: any) => {
     const { event, data } = response;
-    console.log('Received event:', event, data); // Enhanced logging
-    if (event === 'game_started') {
-      console.log('Game started event received');
+    console.log('Received event:', event, data);
+    
+    if (event === 'player_removed' && data.player_id === player?.id) {
+      // We've been removed from the game
+      setPlayer(null);
+      setGameStarted(false);
+      localStorage.removeItem('previousSession');
+      setPreviousSession(null);
+      setErrorMessage('You have been removed from the game by the host');
+    } else if (event === 'game_started') {
       setGameStarted(true);
-      refetch(); // Refetch to get the latest game state
+      refetch();
     } else if (event === 'player_ready_toggled') {
       refetch();
+    } else if (event === 'game_cancelled') {
+      // Clear player state and session data
+      setPlayer(null);
+      setGameStarted(false);
+      localStorage.removeItem('previousSession');
+      setPreviousSession(null);
+      setErrorMessage('Game has been cancelled by the host');
     }
   };
 
@@ -71,13 +175,14 @@ export default function PlayerView() {
     joinGameSession({
       variables: {
         sessionCode: sessionCode.trim().toUpperCase(),
-        playerName: playerName.trim()
+        playerName: playerName.trim(),
+        existingPlayerId: null
       },
       onCompleted: (data) => {
         if (data?.joinGameSession?.player) {
           setPlayer(data.joinGameSession.player);
           setErrorMessage(null);
-          // Refetch session data after joining
+          saveSessionData(sessionCode, data.joinGameSession.player);
           refetch();
         } else {
           setErrorMessage('Failed to join game session.');
@@ -100,6 +205,39 @@ export default function PlayerView() {
       },
     });
   };
+
+  // Update the ActionCable handlers
+  const handleConnected = () => {
+    console.log('Connected to GameSessionChannel');
+    setWsConnected(true);
+    // Refetch session data when connection is established
+    if (player) {
+      refetch();
+    }
+  };
+
+  const handleDisconnected = () => {
+    console.log('Disconnected from GameSessionChannel');
+    setWsConnected(false);
+  };
+
+  const handleRejected = () => {
+    console.log('Connection rejected');
+    setWsConnected(false);
+    setErrorMessage('Connection to game server failed. Please try rejoining.');
+  };
+
+  // Add reconnection effect
+  useEffect(() => {
+    if (!wsConnected && player) {
+      // Try to reconnect after a brief delay
+      const timeout = setTimeout(() => {
+        console.log('Attempting to reconnect...');
+        refetch();
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [wsConnected, player]);
 
   // Only show GamePage when game has explicitly started
   if (gameStarted && player) {
@@ -148,9 +286,16 @@ export default function PlayerView() {
         <ActionCableConsumer
           channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
           onReceived={handleReceived}
-          onConnected={() => console.log('Connected to GameSessionChannel')}
-          onRejected={() => console.log('Rejected from GameSessionChannel')}
+          onConnected={handleConnected}
+          onDisconnected={handleDisconnected}
+          onRejected={handleRejected}
         />
+
+        {!wsConnected && (
+          <div className="connection-warning">
+            Reconnecting to game server...
+          </div>
+        )}
       </div>
     );
   }
@@ -159,6 +304,27 @@ export default function PlayerView() {
   return (
     <div className="card">
       <h2 className="text-center mb-4">Join Game</h2>
+      
+      {previousSession && (
+        <div className="previous-session card mb-4">
+          <h3>Previous Game Session</h3>
+          <p>Session: <strong>{previousSession.sessionCode}</strong></p>
+          <p>Name: <strong>{previousSession.playerName}</strong></p>
+          {checkingSession ? (
+            <p className="status-message">Checking session status...</p>
+          ) : previousSessionData?.gameSession?.active ? (
+            <button 
+              onClick={handleRejoin}
+              className="rejoin-button"
+            >
+              Rejoin Game
+            </button>
+          ) : (
+            <p className="status-message error">This game session is no longer available</p>
+          )}
+        </div>
+      )}
+
       <div className="form-group mb-4">
         <label htmlFor="sessionCode">Session Code:</label>
         <input

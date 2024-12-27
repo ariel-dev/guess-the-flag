@@ -1,14 +1,17 @@
 declare module 'react-actioncable-provider' {
-  import { ComponentType, Component } from 'react';
-  
-  const ActionCableProvider: ComponentType<{ url: string; children?: React.ReactNode }>;
-  export default ActionCableProvider;
-  
-  export const ActionCableConsumer: ComponentType<{
-    channel: {
-      channel: string;
-      [key: string]: any;
-    };
+  interface ActionCableProviderProps {
+    children: React.ReactNode;
+    cable: any;
+  }
+
+  interface ActionCableConsumerProps {
+    channel: { channel: string; [key: string]: any };
     onReceived: (data: any) => void;
-  }>;
+    onConnected?: () => void;
+    onDisconnected?: () => void;
+    onRejected?: () => void;
+  }
+
+  export class ActionCableProvider extends React.Component<ActionCableProviderProps> {}
+  export class ActionCableConsumer extends React.Component<ActionCableConsumerProps> {}
 } 

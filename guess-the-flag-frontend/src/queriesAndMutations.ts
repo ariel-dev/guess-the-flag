@@ -43,8 +43,8 @@ export const CREATE_GAME_SESSION = gql`
 
 // Mutation to start the game
 export const START_GAME = gql`
-  mutation StartGame($sessionCode: String!) {
-    startGame(sessionCode: $sessionCode) {
+  mutation StartGame($sessionCode: String!, $maxQuestions: Int) {
+    startGame(sessionCode: $sessionCode, maxQuestions: $maxQuestions) {
       gameSession {
         id
         sessionCode
@@ -67,8 +67,8 @@ export const START_GAME = gql`
 `;
 
 export const JOIN_GAME_SESSION = gql`
-  mutation JoinGameSession($sessionCode: String!, $playerName: String!) {
-    joinGameSession(sessionCode: $sessionCode, playerName: $playerName) {
+  mutation JoinGameSession($sessionCode: String!, $playerName: String!, $existingPlayerId: ID) {
+    joinGameSession(sessionCode: $sessionCode, playerName: $playerName, existingPlayerId: $existingPlayerId) {
       player {
         id
         name
@@ -127,6 +127,24 @@ export const SUBMIT_ANSWER = gql`
       success
       correct
       updatedScore
+    }
+  }
+`;
+
+export const CANCEL_GAME_SESSION = gql`
+  mutation CancelGameSession($sessionCode: String!) {
+    cancelGameSession(sessionCode: $sessionCode) {
+      success
+      errors
+    }
+  }
+`;
+
+export const REMOVE_PLAYER = gql`
+  mutation RemovePlayer($playerId: ID!, $sessionCode: String!) {
+    removePlayer(playerId: $playerId, sessionCode: $sessionCode) {
+      success
+      errors
     }
   }
 `;

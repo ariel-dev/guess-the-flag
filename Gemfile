@@ -38,6 +38,9 @@ gem "rack-cors"
 
 gem 'graphql', '~> 2.0'
 
+# Add these lines
+gem 'redis'
+gem 'hiredis'
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

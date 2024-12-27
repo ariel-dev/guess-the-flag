@@ -60,6 +60,12 @@ Rails.application.configure do
   # Annotate rendered view with file names.
   # config.action_view.annotate_rendered_view_with_filenames = true
 
-  # Uncomment if you wish to allow Action Cable access from any origin.
-  # config.action_cable.disable_request_forgery_protection = true
+  # Allow Action Cable requests from any origin
+  config.action_cable.disable_request_forgery_protection = true
+  
+  # Set allowed request origins
+  config.action_cable.allowed_request_origins = [
+    'http://localhost:5173', # Vite dev server
+    'http://127.0.0.1:5173'
+  ]
 end

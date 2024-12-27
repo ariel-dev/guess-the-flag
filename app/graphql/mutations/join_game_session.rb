@@ -6,38 +6,40 @@ module Mutations
     # Define arguments
     argument :session_code, String, required: true, description: "The session code of the game session to join."
     argument :player_name, String, required: true, description: "The name of the player joining the session."
+    argument :existing_player_id, ID, required: false
 
     # Define the return field
-    field :player, Types::PlayerType, null: false, description: "The newly created player."
+    field :player, Types::PlayerType, null: true, description: "The newly created player."
 
-    def resolve(session_code:, player_name:)
+    def resolve(session_code:, player_name:, existing_player_id: nil)
       game_session = GameSession.find_by(session_code: session_code)
-      raise GraphQL::ExecutionError, "GameSession with code #{session_code} not found." unless game_session
-      raise GraphQL::ExecutionError, "GameSession is not active." unless game_session.active
+      
+      if game_session.nil?
+        raise GraphQL::ExecutionError, "Game session not found"
+      end
 
-       # Create a new player
-       player = game_session.players.create!(
-        name:  player_name,
-        ready: false,
-        score: 0
-      )
+      # Try to find existing player if ID provided
+      player = if existing_player_id
+                game_session.players.find_by(id: existing_player_id)
+              end
 
-      # Broadcast to all subscribers of this session_code
-      ActionCable.server.broadcast(
-        "game_session_#{session_code}",
-        { event: "player_joined",
-          data: {
-            id: player.id,
-            name: player.name,
-            ready: player.ready,
-            score: player.score
-          }
-        }
-      )
+      # Create new player if no existing player found
+      if player.nil?
+        player = game_session.players.create!(
+          name: player_name,
+          ready: false,
+          score: 0
+        )
+      else
+        # Update existing player's name if it changed
+        player.update!(name: player_name) if player.name != player_name
+      end
 
-      { player: player }
+      {
+        player: player
+      }
     rescue ActiveRecord::RecordInvalid => e
-      GraphQL::ExecutionError.new("Failed to join GameSession: #{e.message}")
+      raise GraphQL::ExecutionError, e.record.errors.full_messages.join(", ")
     end
   end
 end

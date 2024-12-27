@@ -1,13 +1,19 @@
 class GameSessionChannel < ApplicationCable::Channel
   def subscribed
-    # Expect params[:session_code] to be passed during subscription
-    @session_code = params[:session_code]
-
-    # Stream from a unique identifier based on the session_code
-    stream_from "game_session_#{@session_code}"
+    if params[:session_code].present?
+      stream_from "game_session_#{params[:session_code]}"
+    else
+      reject
+    end
   end
 
   def unsubscribed
-    # Any cleanup needed when channel is unsubscribed
+    # Clean up any necessary state
+    stop_all_streams
+  end
+
+  def receive(data)
+    # Handle any incoming WebSocket messages
+    Rails.logger.info "Received message: #{data}"
   end
 end

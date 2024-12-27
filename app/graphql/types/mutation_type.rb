@@ -9,5 +9,7 @@ module Types
     field :mark_player_ready, mutation: Mutations::MarkPlayerReady
     field :start_game, mutation: Mutations::StartGame
     field :submit_answer, mutation: Mutations::SubmitAnswer
+    field :cancel_game_session, mutation: Mutations::CancelGameSession
+    field :remove_player, mutation: Mutations::RemovePlayer
   end
 end

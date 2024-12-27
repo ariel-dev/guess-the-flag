@@ -4,6 +4,8 @@ puts "Seeding Flags, Questions, and Choices..."
 
 # Clear existing data to prevent duplicates (optional)
 # Be cautious with this in production environments
+GameSession.destroy_all
+Player.destroy_all
 Choice.destroy_all
 Question.destroy_all
 Flag.destroy_all
