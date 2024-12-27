@@ -1,37 +1,8 @@
 // src/components/GamePage.tsx
-import React, { useEffect, useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
-// If you're using ActionCable in React, you might also import your cable subscription logic here
-
-// Example GQL queries/mutations (replace with your real definitions)
-const GET_CURRENT_QUESTION = gql`
-  query GetCurrentQuestion($sessionCode: String!) {
-    gameSession(sessionCode: $sessionCode) {
-      id
-      sessionCode
-      currentQuestion {
-        id
-        prompt       # e.g. "Which flag is this?"
-        imageUrl     # For displaying the flag image
-        choices {    # array of possible answers
-          id
-          label      # e.g. "Brazil", "Germany", etc.
-        }
-        timeLeft     # optional field if you want the server to store countdown
-      }
-    }
-  }
-`;
-
-const SUBMIT_ANSWER = gql`
-  mutation SubmitAnswer($questionId: ID!, $answerId: ID!) {
-    submitAnswer(questionId: $questionId, answerId: $answerId) {
-      success
-      correct
-      updatedScore
-    }
-  }
-`;
+import { useEffect, useState } from 'react';
+import { useQuery, useMutation } from '@apollo/client';
+import { GET_GAME_SESSION, SUBMIT_ANSWER } from '../queriesAndMutations';
+import { ActionCableConsumer } from 'react-actioncable-provider';
 
 type Choice = {
   id: string;
@@ -43,111 +14,201 @@ type Question = {
   prompt: string;
   imageUrl?: string;
   choices: Choice[];
-  timeLeft?: number; // optional
+};
+
+type Player = {
+  id: string;
+  name: string;
+  ready: boolean;
+  score: number;
+};
+
+type GameSession = {
+  id: string;
+  sessionCode: string;
+  active: boolean;
+  currentQuestion?: Question | null;
+  players: Player[];
 };
 
 type GameSessionData = {
-  gameSession: {
-    id: string;
-    sessionCode: string;
-    currentQuestion?: Question | null;
+  gameSession: GameSession;
+};
+
+type GameSessionVars = {
+  sessionCode: string;
+};
+
+type SubmitAnswerData = {
+  submitAnswer: {
+    success: boolean;
+    correct: boolean;
+    updatedScore: number;
   };
 };
 
+type SubmitAnswerVars = {
+  questionId: string;
+  answerId: string;
+};
+
 interface GamePageProps {
-  sessionCode: string; // The player's current session code
-  playerId: string;    // The player's ID
-  onDone?: () => void; // Callback if the game ends
+  sessionCode: string;
+  playerId: string;
 }
 
-export default function GamePage({ sessionCode, playerId, onDone }: GamePageProps) {
-  const [localTimeLeft, setLocalTimeLeft] = useState<number | null>(null);
-  const { data, loading, error, refetch } = useQuery<GameSessionData>(
-    GET_CURRENT_QUESTION,
+export default function GamePage({ sessionCode, playerId }: GamePageProps) {
+  const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null);
+  const [timer, setTimer] = useState<number>(10); // 10 seconds countdown
+  const [gameState, setGameState] = useState<'playing' | 'waiting' | 'results'>('playing');
+
+  // Query to get the current game session and question
+  const { data, loading, error, refetch } = useQuery<GameSessionData, GameSessionVars>(
+    GET_GAME_SESSION,
     {
       variables: { sessionCode },
-      pollInterval: 5000, // or remove this if using ActionCable for realtime
       fetchPolicy: 'network-only',
     }
   );
 
-  const [submitAnswer, { loading: answerSubmitting }] = useMutation(SUBMIT_ANSWER);
+  // Mutation to submit an answer
+  const [submitAnswer, { loading: submitting, error: submitError }] = useMutation<
+    SubmitAnswerData,
+    SubmitAnswerVars
+  >(SUBMIT_ANSWER, {
+    onCompleted: (data) => {
+      if (data.submitAnswer.success) {
+        setGameState('waiting');
+        // Optionally, display if the answer was correct
+        alert(data.submitAnswer.correct ? 'Correct!' : 'Incorrect!');
+      }
+    },
+  });
 
-  // If your server calculates the time, you can copy that to local state for a countdown
+  // Countdown Timer Effect
   useEffect(() => {
-    if (data?.gameSession?.currentQuestion?.timeLeft != null) {
-      setLocalTimeLeft(data.gameSession.currentQuestion.timeLeft);
-    }
-  }, [data]);
-
-  // Example local countdown effect
-  useEffect(() => {
-    let timer: number | undefined;
-    if (localTimeLeft != null && localTimeLeft > 0) {
-      timer = window.setInterval(() => {
-        setLocalTimeLeft((t) => (t == null ? 0 : t - 1));
+    let interval: number;
+    if (gameState === 'playing' && timer > 0) {
+      interval = window.setInterval(() => {
+        setTimer((prev) => prev - 1);
       }, 1000);
+    } else if (timer === 0) {
+      setGameState('waiting');
     }
-    return () => {
-      if (timer) window.clearInterval(timer);
-    };
-  }, [localTimeLeft]);
+    return () => window.clearInterval(interval);
+  }, [gameState, timer]);
 
-  // If you also have ActionCable subscription:
-  // - Connect to game_session_{sessionCode}
-  // - on "next_question" or "show_results" event, refetch the query or update local state
-
-  if (loading) return <p>Loading question...</p>;
-  if (error) return <p style={{ color: 'red' }}>Error: {error.message}</p>;
-
-  const question = data?.gameSession?.currentQuestion;
-  if (!question) {
-    return <p>Waiting for next question... (Host might not have started the game)</p>;
-  }
-
-  const handleChoiceClick = async (answerId: string) => {
-    try {
-      await submitAnswer({
-        variables: {
-          questionId: question.id,
-          answerId,
-        },
-      });
-      // Optionally, refetch or rely on server broadcast to update state
-      alert('Answer submitted. Waiting for other players or next question...');
-    } catch (err: any) {
-      console.error('Error submitting answer:', err);
-      alert(err.message);
+  // ActionCable Subscription for real-time updates
+  const handleReceived = (response: any) => {
+    const { event, data } = response;
+    if (event === 'next_question') {
+      // Reset state for next question
+      refetch();
+      setSelectedAnswerId(null);
+      setTimer(10); // Reset timer
+      setGameState('playing');
+    } else if (event === 'game_finished') {
+      // Handle game end, show scoreboard
+      setGameState('results');
     }
+    // Handle other events as needed
   };
 
+  // Handle answer submission
+  const handleSubmitAnswer = () => {
+    if (!selectedAnswerId || !data?.gameSession?.currentQuestion) return;
+
+    submitAnswer({
+      variables: {
+        questionId: data.gameSession.currentQuestion.id,
+        answerId: selectedAnswerId,
+      },
+    });
+  };
+
+  if (loading) return <p>Loading game...</p>;
+  if (error) return <p style={{ color: 'red' }}>Error: {error.message}</p>;
+
+  const currentQuestion = data?.gameSession?.currentQuestion;
+
+  if (!currentQuestion) {
+    return <p>Waiting for the host to start the game...</p>;
+  }
+
   return (
-    <div>
-      <h2>GamePage for Session {sessionCode}</h2>
-      <div style={{ marginBottom: '1rem' }}>
-        {question.imageUrl && (
-          <img src={question.imageUrl} alt="question" style={{ maxWidth: '300px' }} />
-        )}
-        <p>{question.prompt}</p>
-        {localTimeLeft != null && localTimeLeft > 0 && (
-          <p>Time left: {localTimeLeft} seconds</p>
-        )}
-      </div>
-
+    <div style={{ padding: '1rem' }}>
+      <h2>Game Page</h2>
       <div>
-        {question.choices.map((choice) => (
-          <button
-            key={choice.id}
-            disabled={answerSubmitting || (localTimeLeft != null && localTimeLeft <= 0)}
-            onClick={() => handleChoiceClick(choice.id)}
-            style={{ display: 'block', margin: '0.5rem 0' }}
-          >
-            {choice.label}
-          </button>
-        ))}
+        <p>Session Code: <strong>{sessionCode}</strong></p>
+        <p>Your Name: <strong>{data.gameSession.players.find(p => p.id === playerId)?.name}</strong></p>
       </div>
 
-      {answerSubmitting && <p>Submitting answer...</p>}
+      {gameState === 'playing' && currentQuestion && (
+        <div>
+          {currentQuestion.imageUrl && (
+            <img
+              src={currentQuestion.imageUrl}
+              alt="Current Flag"
+              style={{ maxWidth: '300px', marginBottom: '1rem' }}
+            />
+          )}
+          <h3>{currentQuestion.prompt}</h3>
+          <div>
+            {currentQuestion.choices.map((choice) => (
+              <button
+                key={choice.id}
+                onClick={() => setSelectedAnswerId(choice.id)}
+                style={{
+                  display: 'block',
+                  margin: '0.5rem 0',
+                  backgroundColor: selectedAnswerId === choice.id ? '#d3d3d3' : '#fff',
+                }}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleSubmitAnswer}
+            disabled={!selectedAnswerId || submitting || timer === 0}
+            style={{ marginTop: '1rem' }}
+          >
+            {submitting ? 'Submitting...' : 'Submit Answer'}
+          </button>
+          <p>Time Left: {timer} seconds</p>
+          {submitError && (
+            <p style={{ color: 'red' }}>Error submitting answer: {submitError.message}</p>
+          )}
+        </div>
+      )}
+
+      {gameState === 'waiting' && (
+        <div>
+          <p>Waiting for other players or for the next question...</p>
+        </div>
+      )}
+
+      {gameState === 'results' && (
+        <div>
+          <h3>Game Over!</h3>
+          <h4>Scoreboard:</h4>
+          <ul>
+            {data.gameSession.players
+              .sort((a, b) => b.score - a.score)
+              .map((player) => (
+                <li key={player.id}>
+                  {player.name}: {player.score} points
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ActionCable Consumer */}
+      <ActionCableConsumer
+        channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
+        onReceived={handleReceived}
+      />
     </div>
   );
 }

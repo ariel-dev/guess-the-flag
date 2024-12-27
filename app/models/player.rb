@@ -5,5 +5,5 @@ class Player < ApplicationRecord
   # Validations
   validates :name, presence: true
   validates :ready, inclusion: { in: [true, false] }
-  validates :score, numericality: { greater_than_or_equal_to: 0 }
+  validates :score, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 end

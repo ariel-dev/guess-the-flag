@@ -10,9 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_12_27_153943) do
+ActiveRecord::Schema[7.0].define(version: 2024_12_27_193302) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "choices", force: :cascade do |t|
+    t.string "label", null: false
+    t.boolean "correct", default: false, null: false
+    t.bigint "question_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["question_id"], name: "index_choices_on_question_id"
+  end
 
   create_table "flags", force: :cascade do |t|
     t.string "name", null: false
@@ -26,6 +35,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_12_27_153943) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "current_question_id"
+    t.index ["current_question_id"], name: "index_game_sessions_on_current_question_id"
     t.index ["session_code"], name: "index_game_sessions_on_session_code", unique: true
   end
 
@@ -39,5 +50,17 @@ ActiveRecord::Schema[7.0].define(version: 2024_12_27_153943) do
     t.index ["game_session_id"], name: "index_players_on_game_session_id"
   end
 
+  create_table "questions", force: :cascade do |t|
+    t.string "prompt", null: false
+    t.string "image_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "flag_id", null: false
+    t.index ["flag_id"], name: "index_questions_on_flag_id"
+  end
+
+  add_foreign_key "choices", "questions"
+  add_foreign_key "game_sessions", "questions", column: "current_question_id"
   add_foreign_key "players", "game_sessions"
+  add_foreign_key "questions", "flags"
 end

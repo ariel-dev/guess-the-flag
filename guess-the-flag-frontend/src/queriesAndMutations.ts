@@ -1,11 +1,21 @@
 import { gql } from '@apollo/client';
 
+// Query to get the current game session and its current question
 export const GET_GAME_SESSION = gql`
-  query GetGameSession($code: String!) {
-    gameSession(sessionCode: $code) {
+  query GetGameSession($sessionCode: String!) {
+    gameSession(sessionCode: $sessionCode) {
       id
       sessionCode
       active
+      currentQuestion {
+        id
+        prompt
+        imageUrl
+        choices {
+          id
+          label
+        }
+      }
       players {
         id
         name
@@ -28,17 +38,25 @@ export const CREATE_GAME_SESSION = gql`
   }
 `;
 
+// Mutation to start the game
 export const START_GAME = gql`
   mutation StartGame($sessionCode: String!) {
     startGame(sessionCode: $sessionCode) {
       gameSession {
         id
         sessionCode
+        active
         currentQuestion {
           id
           prompt
+          imageUrl
+          choices {
+            id
+            label
+          }
         }
       }
+      success
     }
   }
 `;
@@ -97,11 +115,13 @@ export const GET_CURRENT_QUESTION = gql`
   }
 `;
 
+// Mutation to submit an answer
 export const SUBMIT_ANSWER = gql`
   mutation SubmitAnswer($questionId: ID!, $answerId: ID!) {
     submitAnswer(questionId: $questionId, answerId: $answerId) {
       success
-      message
+      correct
+      updatedScore
     }
   }
 `;

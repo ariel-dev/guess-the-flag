@@ -6,15 +6,11 @@ module Types
     field :id, ID, null: false
     field :session_code, String, null: false
     field :active, Boolean, null: false
-    field :players, [PlayerType], null: true, description: "List of players in the game session."
-    field :created_at, GraphQL::Types::ISO8601DateTime, null: false
-    field :updated_at, GraphQL::Types::ISO8601DateTime, null: false
-
-    # The current question, or nil if none
-    field :current_question, Types::QuestionType, null: true
+    field :players, [Types::PlayerType], null: false, description: "List of players in the game session."
+    field :current_question, Types::QuestionType, null: true, description: "The current question being asked."
 
     def current_question
-      object.current_question # E.g. a method or association that returns the "active" question
+      object.current_question
     end
   end
 end

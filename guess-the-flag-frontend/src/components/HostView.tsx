@@ -22,7 +22,7 @@ export default function HostView() {
     error: sessionError,
     refetch,
   } = useQuery(GET_GAME_SESSION, {
-    variables: { code: sessionCode },
+    variables: { sessionCode: sessionCode },
     skip: !sessionCode, // Don't run query if sessionCode is null
   });
 
