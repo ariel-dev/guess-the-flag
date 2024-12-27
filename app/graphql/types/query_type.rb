@@ -39,5 +39,26 @@ module Types
     def game_session(session_code:)
       GameSession.find_by(session_code: session_code)
     end
+
+    field :flags, [FlagType], null: false,
+    description: "Retrieve a list of all flags"
+
+    def flags
+      # Return all Flag records from the database
+      Flag.all
+    end
+
+    field :get_current_question, Types::QuestionType, null: true do
+      description "Retrieve the current question for a given session code"
+      argument :session_code, String, required: true
+    end
+    
+    def get_current_question(session_code:)
+      # For simplicity, assume we store a "current_question_id" on the GameSession
+      game_session = GameSession.find_by(session_code: session_code)
+      return nil unless game_session && game_session.current_question_id
+    
+      Question.find(game_session.current_question_id)
+    end
   end
 end

@@ -1,4 +1,3 @@
-# app/graphql/mutations/create_game_session.rb
 module Mutations
   class CreateGameSession < BaseMutation
     description "Creates a new game session and returns it."

@@ -7,5 +7,7 @@ module Types
     field :create_game_session, mutation: Mutations::CreateGameSession
     field :join_game_session, mutation: Mutations::JoinGameSession
     field :mark_player_ready, mutation: Mutations::MarkPlayerReady
+    field :start_game, mutation: Mutations::StartGame
+    field :submit_answer, mutation: Mutations::SubmitAnswer
   end
 end

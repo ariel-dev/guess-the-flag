@@ -10,20 +10,26 @@ module Mutations
     field :player, Types::PlayerType, null: false, description: "The updated player."
 
     def resolve(player_id:)
-      # Find the Player by ID
       player = Player.find_by(id: player_id)
-
-      unless player
-        raise GraphQL::ExecutionError, "Player with ID '#{player_id}' not found."
-      end
+      raise GraphQL::ExecutionError, "Player with ID #{player_id} not found." unless player
 
       # Toggle the 'ready' status
       player.ready = !player.ready
       player.save!
 
-      {
-        player: player
-      }
+       # Broadcast readiness change to everyone in the same game session
+       ActionCable.server.broadcast(
+        "game_session_#{player.game_session.session_code}",
+        {event: "player_ready_toggled",
+        data: {
+          id:    player.id,
+          name:  player.name,
+          ready: player.ready,
+          score: player.score
+        }}
+      )
+
+      { player: player }
     rescue ActiveRecord::RecordInvalid => e
       GraphQL::ExecutionError.new("Failed to update Player: #{e.message}")
     end
