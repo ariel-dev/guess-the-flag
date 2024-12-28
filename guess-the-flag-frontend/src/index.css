@@ -576,7 +576,7 @@ h1 {
 
 .flag-track {
   display: flex;
-  animation: scroll 40s linear infinite;
+  animation: scroll 1080s linear infinite;
   width: fit-content;
 }
 
