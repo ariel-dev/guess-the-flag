@@ -6,15 +6,18 @@ import { ActionCableProvider } from 'react-actioncable-provider';
 import { createConsumer } from '@rails/actioncable';
 import client from './apolloClient';
 import './index.css';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const cable = createConsumer('ws://localhost:3000/cable');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ApolloProvider client={client}>
-      <ActionCableProvider cable={cable}>
-        <App />
-      </ActionCableProvider>
-    </ApolloProvider>
+    <ErrorBoundary>
+      <ApolloProvider client={client}>
+        <ActionCableProvider cable={cable}>
+          <App />
+        </ActionCableProvider>
+      </ApolloProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 ); 

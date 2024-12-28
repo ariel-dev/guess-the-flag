@@ -2,12 +2,20 @@ import React, { useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_GAME_SESSION, GET_GAME_SESSION, START_GAME, CANCEL_GAME_SESSION, REMOVE_PLAYER } from '../graphql/queries';
 import GamePage from './GamePage';
+import { ActionCableConsumer } from 'react-actioncable-provider';
 
 function HostView({ isHost = true, onBack }) {
   const [sessionCode, setSessionCode] = useState(() => {
     return localStorage.getItem('hostSessionCode');
   });
   const [maxQuestions, setMaxQuestions] = useState(10);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  const handleReceived = (data) => {
+    // Refetch game session data when we receive a WebSocket message
+    // This ensures our UI stays in sync with the server state
+    refetch();
+  };
 
   const {
     data: sessionData,
@@ -95,6 +103,12 @@ function HostView({ isHost = true, onBack }) {
 
   return (
     <div className="game-container">
+      <ActionCableConsumer
+        channel={{ channel: 'GameChannel', session_code: sessionCode }}
+        onConnected={() => setWsConnected(true)}
+        onDisconnected={() => setWsConnected(false)}
+        onReceived={handleReceived}
+      />
       <button 
         className="back-button"
         onClick={onBack}
@@ -106,7 +120,7 @@ function HostView({ isHost = true, onBack }) {
       <div className="host-layout">
         <div className="host-sidebar">
           <div className="card action-card">
-            <h2 className="title">Game Management</h2>
+            <h2 className="title">Host</h2>
             <div className="session-info">
               <p className="subtitle">Game Code: <strong>{sessionCode}</strong></p>
               <button 
@@ -136,31 +150,38 @@ function HostView({ isHost = true, onBack }) {
               </div>
             )}
 
-            <div className="players-list">
-              <h3>Players ({sessionData?.gameSession?.players?.length || 0})</h3>
-              {sessionData?.gameSession?.players?.map(player => (
-                <div key={player.id} className="player-item">
-                  <div className="player-info">
-                    <span className="player-name">{player.name}</span>
-                    <span className={`status-dot ${player.ready ? 'ready' : 'not-ready'}`}>
-                      {player.ready ? '●' : '○'}
-                    </span>
+            {sessionData?.gameSession?.players && (
+              <div className="players-list">
+                <h3>Players ({sessionData.gameSession.players.length})</h3>
+                {sessionData.gameSession.players.map((player) => (
+                  <div key={player.id} className="player-item">
+                    <div className="player-info">
+                      <span className="player-name">{player.name}</span>
+                      <div className="player-stats">
+                        <span className="player-score">Score: {player.score || 0}</span>
+                        <span className={`status-dot ${player.ready ? 'ready' : 'not-ready'}`}>
+                          {player.ready ? '●' : '○'}
+                        </span>
+                      </div>
+                    </div>
+                    {isHost && (
+                      <button 
+                        onClick={() => removePlayer({
+                          variables: {
+                            playerId: player.id,
+                            sessionCode
+                          }
+                        })}
+                        className="remove-player-button"
+                        title="Remove player"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
-                  <button 
-                    onClick={() => removePlayer({
-                      variables: {
-                        playerId: player.id,
-                        sessionCode
-                      }
-                    })}
-                    className="remove-player-button"
-                    title="Remove player"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <div className="session-actions">
               {!gameInProgress && (
@@ -205,6 +226,13 @@ function HostView({ isHost = true, onBack }) {
 
       {startError && (
         <p className="error">Error starting game: {startError.message}</p>
+      )}
+
+      {wsConnected && (
+        <div className="connection-status connected">
+          <span className="status-dot">🟢</span>
+          Connected
+        </div>
       )}
     </div>
   );
