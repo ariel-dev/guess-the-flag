@@ -22,6 +22,7 @@ export const GET_GAME_SESSION = gql`
         name
         ready
         score
+        isHost
       }
     }
   }

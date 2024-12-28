@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_GAME_SESSION, GET_GAME_SESSION, START_GAME, CANCEL_GAME_SESSION, REMOVE_PLAYER } from '../graphql/queries';
 import GamePage from './GamePage';
@@ -42,6 +42,16 @@ function HostView({ isHost = true, onBack }) {
     variables: { sessionCode },
     skip: !sessionCode,
   });
+
+  // Update hostPlayer when session data changes
+  useEffect(() => {
+    if (sessionData?.gameSession?.players) {
+      const host = sessionData.gameSession.players.find(player => player.isHost);
+      if (host) {
+        setHostPlayer(host);
+      }
+    }
+  }, [sessionData]);
 
   const [createSession, { loading: creatingSession, error: creationError }] = useMutation(
     CREATE_GAME_SESSION,
