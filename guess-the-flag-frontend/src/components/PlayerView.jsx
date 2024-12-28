@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@apollo/client';
 import { JOIN_GAME_SESSION, MARK_PLAYER_READY, GET_GAME_SESSION, LEAVE_GAME_SESSION } from '../graphql/queries';
 import { ActionCableConsumer } from 'react-actioncable-provider';
 import GamePage from './GamePage';
+import WaitingRoom from './WaitingRoom';
 
 function PlayerView({ onBack }) {
   const [sessionCode, setSessionCode] = useState('');
@@ -229,72 +230,15 @@ function PlayerView({ onBack }) {
             Back to Menu
           </button>
         </div>
-        <div className="card action-card">
-          <h2 className="title">Waiting Room</h2>
-          <div className="session-info">
-            <p className="subtitle">Game Code: <strong>{sessionCode}</strong></p>
-            <p className="subtitle">Player: <strong>{player.name}</strong></p>
-            <div className={`connection-status ${wsConnected ? 'connected' : 'disconnected'}`}>
-              <span className="status-dot">{wsConnected ? '🟢' : '🔴'}</span>
-              {wsConnected ? 'Connected' : 'Disconnected'}
-            </div>
-          </div>
-          
-          {sessionData?.gameSession?.players && (
-            <div className="players-list">
-              <h3>Players ({sessionData.gameSession.players.length})</h3>
-              {sessionData.gameSession.players.map((p) => (
-                <div key={p.id} className="player-item">
-                  <div className="player-info">
-                    <span className="player-name">{p.name}</span>
-                    <div className="player-stats">
-                      <span className="player-score">Score: {p.score || 0}</span>
-                      <span className={`status-dot ${p.ready ? 'ready' : 'not-ready'}`}>
-                        {p.ready ? '●' : '○'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {!player.ready ? (
-            <div className="button-group">
-              <button 
-                onClick={() => markReady({ variables: { playerId: player.id } })}
-                className="action-button host-button"
-              >
-                <span className="button-icon">✓</span>
-                Mark as Ready
-                <span className="button-description">Let others know you're ready to play</span>
-              </button>
-              <button 
-                onClick={handleLeaveGame}
-                className="action-button leave-game-button"
-              >
-                <span className="button-icon">🚪</span>
-                Leave Game
-                <span className="button-description">Exit this game session</span>
-              </button>
-            </div>
-          ) : (
-            <div className="status-card">
-              <span className="status-icon">⌛</span>
-              <p className="status-message">
-                Ready! Waiting for other players and host to start the game...
-              </p>
-              <button 
-                onClick={handleLeaveGame}
-                className="action-button leave-game-button"
-              >
-                <span className="button-icon">🚪</span>
-                Leave Game
-                <span className="button-description">Exit this game session</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <WaitingRoom
+          sessionCode={sessionCode}
+          player={player}
+          players={sessionData?.gameSession?.players}
+          wsConnected={wsConnected}
+          onMarkReady={() => markReady({ variables: { playerId: player.id } })}
+          onLeaveGame={handleLeaveGame}
+          isHost={player.isHost}
+        />
       </div>
     );
   }

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { ActionCableConsumer } from 'react-actioncable-provider';
 import { GET_GAME_SESSION, SUBMIT_ANSWER } from '../graphql/queries';
+import WaitingRoom from './WaitingRoom';
 
 function GamePage({ sessionCode, player }) {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -158,48 +159,20 @@ function GamePage({ sessionCode, player }) {
 
   if (!gameData?.gameSession?.currentQuestion) {
     return (
-      <div className="game-page waiting-screen">
+      <div className="game-page">
         <ActionCableConsumer
           channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
           onReceived={handleReceived}
         />
-        <div className="waiting-content">
-          <h2>🎮 Waiting Room</h2>
-          
-          <div className="session-info">
-            <p className="info-item">
-              <span className="label">Session Code:</span>
-              <span className="value">{sessionCode}</span>
-            </p>
-            <p className="info-item">
-              <span className="label">Your Name:</span>
-              <span className="value">{player.name}</span>
-            </p>
-          </div>
-
-          <div className="waiting-players">
-            <h3>Players in Room</h3>
-            <div className="players-list">
-              {gameData?.gameSession?.players?.map((p) => (
-                <div 
-                  key={p.id} 
-                  className={`player-item ${p.id === player.id ? 'current-player' : ''}`}
-                >
-                  <span className="player-name">{p.name}</span>
-                  <div className="status-dot ready">●</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="loading-animation">
-            <div className="dot"></div>
-            <div className="dot"></div>
-            <div className="dot"></div>
-          </div>
-          
-          <p className="waiting-message">Waiting for host to start the game...</p>
-        </div>
+        <WaitingRoom
+          sessionCode={sessionCode}
+          player={player}
+          players={gameData?.gameSession?.players}
+          wsConnected={true}
+          onMarkReady={() => {}}
+          onLeaveGame={() => {}}
+          isHost={player.isHost}
+        />
       </div>
     );
   }
