@@ -40,11 +40,10 @@ module Types
       GameSession.find_by(session_code: session_code)
     end
 
-    field :flags, [FlagType], null: false,
-    description: "Retrieve a list of all flags"
+    field :flags, [Types::FlagType], null: false,
+      description: "Returns all flags available in the game"
 
     def flags
-      # Return all Flag records from the database
       Flag.all
     end
 

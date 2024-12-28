@@ -1,45 +1,51 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
-import { CREATE_GAME_SESSION, GET_GAME_SESSION, START_GAME, CANCEL_GAME_SESSION, REMOVE_PLAYER } from '../queriesAndMutations';
+import { 
+  CREATE_GAME_SESSION, 
+  GET_GAME_SESSION, 
+  START_GAME, 
+  CANCEL_GAME_SESSION, 
+  REMOVE_PLAYER 
+} from '../graphql/queries';
 
-export default function HostView({ isHost = true }) {
-  const [sessionCode, setSessionCode] = useState<string | null>(() => {
-    // Check localStorage for previous host session
+function HostView({ isHost = true }) {
+  const [sessionCode, setSessionCode] = useState(() => {
     return localStorage.getItem('hostSessionCode');
   });
-  const [maxQuestions, setMaxQuestions] = useState<number>(10);
+  const [maxQuestions, setMaxQuestions] = useState(10);
 
-  // Query for existing session if we have a sessionCode
   const {
     data: sessionData,
     loading: sessionLoading,
     error: sessionError,
     refetch,
   } = useQuery(GET_GAME_SESSION, {
-    variables: { sessionCode: sessionCode },
+    variables: { sessionCode },
     skip: !sessionCode,
   });
 
-  // Only initialize mutations if user is the host
-  const [createSession, { loading: creatingSession, error: creationError }] = isHost ?
-    useMutation(CREATE_GAME_SESSION, {
+  const [createSession, { loading: creatingSession, error: creationError }] = useMutation(
+    CREATE_GAME_SESSION,
+    {
       onCompleted: (data) => {
         const code = data.createGameSession.gameSession.sessionCode;
         setSessionCode(code);
         localStorage.setItem('hostSessionCode', code);
       },
-    }) : [() => {}, { loading: false, error: null }];
+    }
+  );
 
-  const [cancelGame] = isHost ? useMutation(CANCEL_GAME_SESSION, {
+  const [cancelGame] = useMutation(CANCEL_GAME_SESSION, {
     variables: { sessionCode },
     onCompleted: () => {
       setSessionCode(null);
       localStorage.removeItem('hostSessionCode');
     },
-  }) : [() => {}];
+  });
 
-  const [startGame, { loading: startingGame, error: startError }] = isHost ? 
-    useMutation(START_GAME, {
+  const [startGame, { loading: startingGame, error: startError }] = useMutation(
+    START_GAME,
+    {
       variables: { sessionCode, maxQuestions },
       onCompleted: (data) => {
         if (data.startGame.errors?.length > 0) {
@@ -48,17 +54,17 @@ export default function HostView({ isHost = true }) {
           refetch();
         }
       },
-    }) : [() => {}, { loading: false, error: null }];
+    }
+  );
 
-  const [removePlayer] = isHost ? useMutation(REMOVE_PLAYER, {
+  const [removePlayer] = useMutation(REMOVE_PLAYER, {
     onCompleted: () => {
       refetch();
     },
-  }) : [() => {}];
+  });
 
-  // Game state checks
   const allPlayersReady = sessionData?.gameSession?.players?.length > 0 && 
-    sessionData.gameSession.players.every((player: any) => player.ready);
+    sessionData.gameSession.players.every(player => player.ready);
   const gameInProgress = sessionData?.gameSession?.active && 
     sessionData?.gameSession?.currentQuestion !== null;
 
@@ -108,7 +114,7 @@ export default function HostView({ isHost = true }) {
           {sessionData?.gameSession?.players && (
             <div className="players-list card">
               <h3>Players ({sessionData.gameSession.players.length})</h3>
-              {sessionData.gameSession.players.map((player: any) => (
+              {sessionData.gameSession.players.map(player => (
                 <div key={player.id} className="player-item">
                   <div className="player-info">
                     <span className="player-name">{player.name}</span>
@@ -137,7 +143,7 @@ export default function HostView({ isHost = true }) {
 
           {isHost && !gameInProgress && (
             <button 
-              onClick={() => startGame && startGame()} 
+              onClick={() => startGame()} 
               disabled={startingGame || !allPlayersReady || sessionData?.gameSession?.players?.length === 0}
               className="mt-4 start-button"
             >
@@ -149,7 +155,7 @@ export default function HostView({ isHost = true }) {
           )}
         </div>
       ) : isHost ? (
-        <button onClick={() => createSession && createSession()} disabled={creatingSession}>
+        <button onClick={() => createSession()} disabled={creatingSession}>
           {creatingSession ? 'Creating...' : 'Create Session'}
         </button>
       ) : null}
@@ -164,3 +170,5 @@ export default function HostView({ isHost = true }) {
     </div>
   );
 }
+
+export default HostView; 
