@@ -28,12 +28,19 @@ export const GET_GAME_SESSION = gql`
 `;
 
 export const CREATE_GAME_SESSION = gql`
-  mutation CreateGameSession {
-    createGameSession {
+  mutation CreateGameSession($hostName: String!) {
+    createGameSession(hostName: $hostName) {
       gameSession {
         id
         sessionCode
         active
+      }
+      hostPlayer {
+        id
+        name
+        ready
+        score
+        isHost
       }
     }
   }
@@ -106,6 +113,7 @@ export const CANCEL_GAME_SESSION = gql`
     cancelGameSession(sessionCode: $sessionCode) {
       success
       errors
+      new_session_code
     }
   }
 `;
@@ -125,6 +133,15 @@ export const GET_FLAGS = gql`
       id
       name
       imageUrl
+    }
+  }
+`;
+
+export const LEAVE_GAME_SESSION = gql`
+  mutation LeaveGameSession($playerId: ID!, $sessionCode: String!) {
+    leaveGameSession(playerId: $playerId, sessionCode: $sessionCode) {
+      success
+      errors
     }
   }
 `; 

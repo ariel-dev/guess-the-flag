@@ -7,6 +7,9 @@ module Types
     field :name, String, null: false
     field :ready, Boolean, null: false
     field :score, Integer, null: false
-    field :game_session, Types::GameSessionType, null: false
+    field :is_host, Boolean, null: false
+    field :game_session_id, Integer, null: false
+    field :created_at, GraphQL::Types::ISO8601DateTime, null: false
+    field :updated_at, GraphQL::Types::ISO8601DateTime, null: false
   end
 end

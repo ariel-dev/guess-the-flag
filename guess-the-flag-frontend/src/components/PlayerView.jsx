@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
-import { JOIN_GAME_SESSION, MARK_PLAYER_READY, GET_GAME_SESSION } from '../graphql/queries';
+import { JOIN_GAME_SESSION, MARK_PLAYER_READY, GET_GAME_SESSION, LEAVE_GAME_SESSION } from '../graphql/queries';
 import { ActionCableConsumer } from 'react-actioncable-provider';
 import GamePage from './GamePage';
 
@@ -30,16 +30,34 @@ function PlayerView({ onBack }) {
   const { data: sessionData, refetch } = useQuery(GET_GAME_SESSION, {
     variables: { sessionCode },
     skip: !sessionCode || !player,
+    onCompleted: (data) => {
+      console.log('Game session data received:', data);
+      if (data?.gameSession?.active && data?.gameSession?.currentQuestion) {
+        console.log('Setting game as started from query');
+        setGameStarted(true);
+      }
+    }
   });
 
   const [joinGame, { loading: joining }] = useMutation(JOIN_GAME_SESSION, {
     onCompleted: (data) => {
+      console.log('Join game completed:', data);
       const joinedPlayer = data.joinGameSession.player;
       setPlayer(joinedPlayer);
       saveSessionData(sessionCode, joinedPlayer);
       setErrorMessage(null);
+      
+      // Immediately check game state after joining
+      refetch().then(({ data }) => {
+        console.log('Checking game state after join:', data);
+        if (data?.gameSession?.active && data?.gameSession?.currentQuestion) {
+          console.log('Setting game as started after join');
+          setGameStarted(true);
+        }
+      });
     },
     onError: (error) => {
+      console.error('Join game error:', error);
       setErrorMessage(error.message);
     },
   });
@@ -50,54 +68,148 @@ function PlayerView({ onBack }) {
     },
   });
 
+  const [leaveGame] = useMutation(LEAVE_GAME_SESSION, {
+    onCompleted: () => {
+      setPlayer(null);
+      setGameStarted(false);
+      setSessionCode('');
+      setPlayerName('');
+      localStorage.removeItem('previousSession');
+      setPreviousSession(null);
+    },
+    onError: (error) => {
+      setErrorMessage(error.message);
+    },
+  });
+
   const handleJoin = () => {
     if (!sessionCode.trim() || !playerName.trim()) return;
+    setErrorMessage(null);
     joinGame({
       variables: {
         sessionCode: sessionCode.trim(),
         playerName: playerName.trim(),
       },
+    }).catch(error => {
+      setErrorMessage(error.message);
     });
   };
 
   const handleRejoin = () => {
     if (!previousSession) return;
+    console.log('Starting rejoin process with session:', previousSession);
+    setErrorMessage(null);
+    setSessionCode(previousSession.sessionCode);
+    
     joinGame({
       variables: {
         sessionCode: previousSession.sessionCode,
         playerName: previousSession.playerName,
         existingPlayerId: previousSession.playerId,
       },
+    }).then(() => {
+      console.log('Successfully rejoined, resetting WebSocket');
+      // Re-establish WebSocket connection
+      setWsConnected(false);
+      return new Promise(resolve => setTimeout(() => {
+        setWsConnected(true);
+        resolve();
+      }, 100));
+    }).then(() => {
+      console.log('WebSocket reset, fetching game state');
+      // Fetch the latest game state
+      return refetch();
+    }).then(({ data }) => {
+      console.log('Game state after rejoin:', data);
+      // Check if game is active and has a current question
+      if (data?.gameSession?.active && data?.gameSession?.currentQuestion) {
+        console.log('Game is active, updating state');
+        setGameStarted(true);
+      }
+    }).catch(error => {
+      console.error('Error during rejoin:', error);
+      setErrorMessage(error.message);
     });
   };
 
   const handleReceived = (data) => {
-    if (data.event === 'game_started') {
-      setGameStarted(true);
+    console.log('Received WebSocket message:', data);
+    switch (data.event) {
+      case 'game_started':
+      case 'next_question':
+        setGameStarted(true);
+        refetch();
+        break;
+      case 'game_cancelled':
+        // Update session code and reset game state
+        if (data.data.newSessionCode) {
+          setSessionCode(data.data.newSessionCode);
+          setGameStarted(false);
+          saveSessionData(data.data.newSessionCode, player);
+          refetch();
+        }
+        break;
+      default:
+        refetch();
+        break;
     }
-    refetch();
+  };
+
+  const handleLeaveGame = () => {
+    if (!player || !sessionCode) return;
+    
+    leaveGame({
+      variables: {
+        playerId: player.id,
+        sessionCode: sessionCode,
+      },
+    }).catch(error => {
+      setErrorMessage(error.message);
+    });
   };
 
   if (gameStarted && player) {
-    return <GamePage sessionCode={sessionCode} player={player} />;
+    return (
+      <>
+        <button 
+          className="back-button leave-button"
+          onClick={handleLeaveGame}
+        >
+          <span className="button-icon">🚪</span>
+          Leave Game
+        </button>
+        <GamePage sessionCode={sessionCode} player={player} />
+      </>
+    );
   }
 
   if (player) {
     return (
       <div className="game-container">
-        <button 
-          className="back-button"
-          onClick={onBack}
-        >
-          <span className="button-icon">←</span>
-          Back to Menu
-        </button>
         <ActionCableConsumer
-          channel={{ channel: 'GameChannel', session_code: sessionCode }}
-          onConnected={() => setWsConnected(true)}
-          onDisconnected={() => setWsConnected(false)}
-          onReceived={handleReceived}
+          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
+          onConnected={() => {
+            console.log('WebSocket connected');
+            setWsConnected(true);
+          }}
+          onDisconnected={() => {
+            console.log('WebSocket disconnected');
+            setWsConnected(false);
+          }}
+          onReceived={(data) => {
+            console.log('Received WebSocket message:', data);
+            handleReceived(data);
+          }}
         />
+        <div className="header-buttons">
+          <button 
+            className="back-button"
+            onClick={onBack}
+          >
+            <span className="button-icon">←</span>
+            Back to Menu
+          </button>
+        </div>
         <div className="card action-card">
           <h2 className="title">Waiting Room</h2>
           <div className="session-info">
@@ -110,20 +222,38 @@ function PlayerView({ onBack }) {
           </div>
           
           {!player.ready ? (
-            <button 
-              onClick={() => markReady({ variables: { playerId: player.id } })}
-              className="action-button host-button"
-            >
-              <span className="button-icon">✓</span>
-              Mark as Ready
-              <span className="button-description">Let others know you're ready to play</span>
-            </button>
+            <div className="button-group">
+              <button 
+                onClick={() => markReady({ variables: { playerId: player.id } })}
+                className="action-button host-button"
+              >
+                <span className="button-icon">✓</span>
+                Mark as Ready
+                <span className="button-description">Let others know you're ready to play</span>
+              </button>
+              <button 
+                onClick={handleLeaveGame}
+                className="action-button leave-game-button"
+              >
+                <span className="button-icon">🚪</span>
+                Leave Game
+                <span className="button-description">Exit this game session</span>
+              </button>
+            </div>
           ) : (
             <div className="status-card">
               <span className="status-icon">⌛</span>
               <p className="status-message">
                 Ready! Waiting for other players and host to start the game...
               </p>
+              <button 
+                onClick={handleLeaveGame}
+                className="action-button leave-game-button"
+              >
+                <span className="button-icon">🚪</span>
+                Leave Game
+                <span className="button-description">Exit this game session</span>
+              </button>
             </div>
           )}
         </div>

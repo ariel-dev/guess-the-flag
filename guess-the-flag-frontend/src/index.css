@@ -141,12 +141,10 @@ button {
 }
 
 .session-actions {
-  margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .copy-button {
@@ -172,8 +170,8 @@ button {
 }
 
 .cancel-button {
-  background: rgba(231, 76, 60, 0.1);
-  color: #ff6b6b;
+  background-color: var(--error-color);
+  color: white;
   border: 1px solid rgba(231, 76, 60, 0.2);
   padding: 0.75rem;
   border-radius: 8px;
@@ -186,7 +184,7 @@ button {
 }
 
 .cancel-button:hover {
-  background: rgba(231, 76, 60, 0.2);
+  background-color: #c0392b;
 }
 
 .game-settings {
@@ -194,6 +192,24 @@ button {
   padding: 1rem;
   border-radius: 12px;
   color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.game-settings h3 {
+  color: white;
+  font-size: 1rem;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .game-settings input {
@@ -202,8 +218,27 @@ button {
   color: white;
   padding: 0.5rem;
   border-radius: 6px;
-  margin-left: 1rem;
   width: 80px;
+}
+
+.game-settings .cancel-button {
+  background: linear-gradient(45deg, var(--error-color), #ff6b6b);
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 8px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.game-settings .cancel-button:hover {
+  background: linear-gradient(45deg, #c0392b, #e74c3c);
+  transform: translateY(-2px);
 }
 
 .players-list {
@@ -286,25 +321,45 @@ button {
   background: rgba(231, 76, 60, 0.2);
 }
 
-.start-button {
+.start-button,
+.cancel-button {
   width: 100%;
-  padding: 1rem;
-  background: linear-gradient(45deg, #4a90e2, #67b26f);
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.start-button {
+  background-color: var(--success-color);
   color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 1.1rem;
-  transition: all 0.3s ease;
 }
 
 .start-button:disabled {
-  background: rgba(255, 255, 255, 0.1);
+  background-color: #ccc;
   cursor: not-allowed;
 }
 
 .start-button:not(:disabled):hover {
-  transform: translateY(-2px);
-  filter: brightness(1.1);
+  background-color: #27ae60;
+}
+
+.cancel-button {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.cancel-button:hover {
+  background-color: #c0392b;
+}
+
+.button-icon {
+  font-size: 1.2rem;
 }
 
 /* Player View Styles */
@@ -618,4 +673,84 @@ h1 {
 /* Adjust spacing for content */
 .host-sidebar .card > *:not(:last-child) {
   margin-bottom: 1rem;
+}
+
+/* Add these styles for the leave button and header buttons */
+.header-buttons {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  gap: 1rem;
+  z-index: 100;
+}
+
+.leave-button {
+  background-color: var(--error-color);
+  color: white;
+  border: none;
+}
+
+.leave-button:hover {
+  background-color: #c0392b;
+  transform: translateY(-2px);
+}
+
+/* Update existing back-button styles */
+.back-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border-radius: 30px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  z-index: 100;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.leave-game-button {
+  background: linear-gradient(45deg, var(--error-color), #ff6b6b) !important;
+  border: none !important;
+}
+
+.leave-game-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.status-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.status-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-message {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
 } 

@@ -10,11 +10,27 @@ function HostView({ isHost = true, onBack }) {
   });
   const [maxQuestions, setMaxQuestions] = useState(10);
   const [wsConnected, setWsConnected] = useState(false);
+  const [hostPlayer, setHostPlayer] = useState(null);
 
   const handleReceived = (data) => {
-    // Refetch game session data when we receive a WebSocket message
-    // This ensures our UI stays in sync with the server state
-    refetch();
+    console.log('Received WebSocket message:', data);
+    switch (data.event) {
+      case 'player_joined':
+        // Update the session data to reflect the new player
+        refetch();
+        break;
+      case 'game_cancelled':
+        // Update to the new session code and refetch game state
+        if (data.data.newSessionCode) {
+          setSessionCode(data.data.newSessionCode);
+          localStorage.setItem('hostSessionCode', data.data.newSessionCode);
+          refetch();
+        }
+        break;
+      default:
+        refetch();
+        break;
+    }
   };
 
   const {
@@ -30,9 +46,11 @@ function HostView({ isHost = true, onBack }) {
   const [createSession, { loading: creatingSession, error: creationError }] = useMutation(
     CREATE_GAME_SESSION,
     {
+      variables: { hostName: 'Host' },
       onCompleted: (data) => {
         const code = data.createGameSession.gameSession.sessionCode;
         setSessionCode(code);
+        setHostPlayer(data.createGameSession.hostPlayer);
         localStorage.setItem('hostSessionCode', code);
       },
     }
@@ -40,9 +58,13 @@ function HostView({ isHost = true, onBack }) {
 
   const [cancelGame] = useMutation(CANCEL_GAME_SESSION, {
     variables: { sessionCode },
-    onCompleted: () => {
-      setSessionCode(null);
-      localStorage.removeItem('hostSessionCode');
+    onCompleted: (data) => {
+      if (data.cancelGameSession.success) {
+        const new_session_code = data.cancelGameSession.new_session_code;
+        setSessionCode(new_session_code);
+        localStorage.setItem('hostSessionCode', new_session_code);
+        refetch();
+      }
     },
   });
 
@@ -70,6 +92,28 @@ function HostView({ isHost = true, onBack }) {
     sessionData.gameSession.players.every(player => player.ready);
   const gameInProgress = sessionData?.gameSession?.active && 
     sessionData?.gameSession?.currentQuestion !== null;
+
+  const handleCancelGame = () => {
+    cancelGame({
+      variables: { sessionCode },
+      onCompleted: (data) => {
+        console.log('Cancel game response:', data);
+        if (data.cancelGameSession.success && data.cancelGameSession.new_session_code) {
+          setSessionCode(data.cancelGameSession.new_session_code);
+          localStorage.setItem('hostSessionCode', data.cancelGameSession.new_session_code);
+          refetch();
+        } else {
+          // If game session not found, create a new one
+          createSession();
+        }
+      },
+      onError: (error) => {
+        console.error('Error canceling game:', error);
+        // If there's an error (like session not found), create a new session
+        createSession();
+      }
+    });
+  };
 
   if (!sessionCode) {
     return (
@@ -104,7 +148,7 @@ function HostView({ isHost = true, onBack }) {
   return (
     <div className="game-container">
       <ActionCableConsumer
-        channel={{ channel: 'GameChannel', session_code: sessionCode }}
+        channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
         onConnected={() => setWsConnected(true)}
         onDisconnected={() => setWsConnected(false)}
         onReceived={handleReceived}
@@ -164,7 +208,7 @@ function HostView({ isHost = true, onBack }) {
                         </span>
                       </div>
                     </div>
-                    {isHost && (
+                    {isHost && !gameInProgress && (
                       <button 
                         onClick={() => removePlayer({
                           variables: {
@@ -184,41 +228,35 @@ function HostView({ isHost = true, onBack }) {
             )}
 
             <div className="session-actions">
+              <button 
+                onClick={handleCancelGame}
+                className="cancel-button"
+              >
+                <span className="button-icon">{gameInProgress ? '🔄' : '❌'}</span>
+                {gameInProgress ? 'Restart Game' : 'Cancel Game'}
+              </button>
               {!gameInProgress && (
-                <>
-                  <button 
-                    onClick={() => startGame()} 
-                    disabled={startingGame || !allPlayersReady || !sessionData?.gameSession?.players?.length}
-                    className="start-button"
-                  >
-                    <span className="button-icon">▶️</span>
-                    {startingGame ? 'Starting...' : 
-                     !sessionData?.gameSession?.players?.length ? 'Waiting for players...' :
-                     !allPlayersReady ? 'Waiting for players to be ready...' : 
-                     'Start Game'}
-                  </button>
-                  <button 
-                    onClick={() => cancelGame()}
-                    className="cancel-button"
-                  >
-                    <span className="button-icon">❌</span>
-                    Cancel Game
-                  </button>
-                </>
+                <button 
+                  onClick={() => startGame()} 
+                  disabled={startingGame || !allPlayersReady || !sessionData?.gameSession?.players?.length}
+                  className="start-button"
+                >
+                  <span className="button-icon">▶️</span>
+                  {startingGame ? 'Starting...' : 
+                   !sessionData?.gameSession?.players?.length ? 'Waiting for players...' :
+                   !allPlayersReady ? 'Waiting for players to be ready...' : 
+                   'Start Game'}
+                </button>
               )}
             </div>
           </div>
         </div>
 
         <div className="game-content">
-          {true && (
+          {hostPlayer && (
             <GamePage 
               sessionCode={sessionCode} 
-              player={{ 
-                id: 'host',
-                name: 'Host',
-                isHost: true
-              }} 
+              player={hostPlayer}
             />
           )}
         </div>

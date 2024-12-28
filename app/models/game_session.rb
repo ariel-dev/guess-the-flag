@@ -38,6 +38,10 @@ class GameSession < ApplicationRecord
     )
     players.update_all(has_answered: false)
     
+    # Start the timer for the first question
+    start_question_timer
+    
+    # Broadcast game start with initial question
     broadcast_current_question(first_question)
   end
 
@@ -50,26 +54,31 @@ class GameSession < ApplicationRecord
       return
     end
     
+    # Find next question first
+    next_question = game_session_questions
+      .where('"order" > ?', questions_count)
+      .order('"order"')
+      .first&.question
+
+    return unless next_question
+
+    # Then update everything in a transaction
     transaction do
       players.update_all(has_answered: false)
       
-      next_question = game_session_questions
-        .where('order > ?', questions_count)
-        .order(:order)
-        .first&.question
+      update!(
+        current_question: next_question,
+        questions_count: questions_count + 1
+      )
       
-      if next_question
-        update!(
-          current_question: next_question,
-          questions_count: questions_count + 1
-        )
-        
-        broadcast_current_question(next_question)
-      else
-        update!(active: false)
-        broadcast_game_finished
-      end
+      # Start the timer for the new question
+      start_question_timer
+      broadcast_current_question(next_question)
     end
+  rescue StandardError => e
+    Rails.logger.error "Error in next_question!: #{e.message}\n#{e.backtrace.join("\n")}"
+    update!(active: false)
+    broadcast_game_finished
   end
 
   def broadcast_game_finished
@@ -200,5 +209,58 @@ class GameSession < ApplicationRecord
         }
       }
     )
+  end
+
+  def start_question_timer
+    @timer_thread&.exit
+    
+    # Calculate start and end times
+    start_time = Time.current
+    end_time = start_time + 20.seconds
+
+    # Broadcast the start time to clients
+    ActionCable.server.broadcast(
+      "game_session_#{session_code}",
+      {
+        event: "question_timer_start",
+        data: {
+          start_time: start_time.utc.iso8601(3),
+          duration_seconds: 20
+        }
+      }
+    )
+    
+    @timer_thread = Thread.new do
+      begin
+        # Sleep until the end time
+        sleep_duration = [end_time - Time.current, 0].max
+        sleep(sleep_duration)
+        
+        # Time's up - broadcast time up event
+        ActionCable.server.broadcast(
+          "game_session_#{session_code}",
+          {
+            event: "question_time_up",
+            data: {}
+          }
+        )
+
+        # Give players 2 seconds to see their results
+        sleep(2)
+        
+        # Use ActiveRecord::Base.connection_pool.with_connection to ensure safe DB access
+        ActiveRecord::Base.connection_pool.with_connection do
+          # Reload the game session to ensure we have the latest state
+          game_session = GameSession.find_by(id: id)
+          if game_session&.active
+            game_session.next_question!
+          end
+        end
+      rescue StandardError => e
+        Rails.logger.error "Timer thread error: #{e.message}\n#{e.backtrace.join("\n")}"
+      ensure
+        ActiveRecord::Base.connection_pool.release_connection if ActiveRecord::Base.connection_pool.active_connection?
+      end
+    end
   end
 end
