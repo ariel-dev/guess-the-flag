@@ -44,17 +44,10 @@ function App() {
   return (
     <div className="game-container">
       {view === 'host' ? (
-        <HostView isHost={true} />
+        <HostView isHost={true} onBack={() => setView(null)} />
       ) : (
-        <PlayerView />
+        <PlayerView onBack={() => setView(null)} />
       )}
-      <button 
-        className="back-button"
-        onClick={() => setView(null)}
-      >
-        <span className="button-icon">←</span>
-        Back to Menu
-      </button>
     </div>
   );
 }

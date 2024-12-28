@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
-import { 
-  CREATE_GAME_SESSION, 
-  GET_GAME_SESSION, 
-  START_GAME, 
-  CANCEL_GAME_SESSION, 
-  REMOVE_PLAYER 
-} from '../graphql/queries';
+import { CREATE_GAME_SESSION, GET_GAME_SESSION, START_GAME, CANCEL_GAME_SESSION, REMOVE_PLAYER } from '../graphql/queries';
+import GamePage from './GamePage';
 
-function HostView({ isHost = true }) {
+function HostView({ isHost = true, onBack }) {
   const [sessionCode, setSessionCode] = useState(() => {
     return localStorage.getItem('hostSessionCode');
   });
@@ -68,53 +63,82 @@ function HostView({ isHost = true }) {
   const gameInProgress = sessionData?.gameSession?.active && 
     sessionData?.gameSession?.currentQuestion !== null;
 
-  return (
-    <div className="card">
-      <h2 className="text-center mb-4">{isHost ? 'Host View' : 'Lobby'}</h2>
-
-      {sessionCode ? (
-        <div>
-          {isHost && (
-            <div className="session-info mb-4">
-              <p>Session Code: <strong>{sessionCode}</strong></p>
-              <div className="session-actions">
-                <button 
-                  onClick={() => navigator.clipboard.writeText(sessionCode)}
-                  className="copy-button"
-                >
-                  📋 Copy Code
-                </button>
-                {!gameInProgress && (
-                  <>
-                    <div className="game-settings mb-4">
-                      <label htmlFor="maxQuestions">Number of Questions:</label>
-                      <input
-                        id="maxQuestions"
-                        type="number"
-                        min="1"
-                        max="20"
-                        value={maxQuestions}
-                        onChange={(e) => setMaxQuestions(Math.max(1, Math.min(20, parseInt(e.target.value) || 10)))}
-                        disabled={gameInProgress}
-                        className="form-input"
-                      />
-                    </div>
-                    <button 
-                      onClick={() => cancelGame()}
-                      className="cancel-button"
-                    >
-                      ❌ Cancel Game
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+  if (!sessionCode) {
+    return (
+      <div className="game-container">
+        <button 
+          className="back-button"
+          onClick={onBack}
+        >
+          <span className="button-icon">←</span>
+          Back to Menu
+        </button>
+        <div className="card action-card">
+          <h1 className="title">Host a New Game</h1>
+          <p className="subtitle">Create a new game session and invite players to join!</p>
+          <button 
+            onClick={() => createSession()} 
+            disabled={creatingSession}
+            className="action-button host-button"
+          >
+            <span className="button-icon">🎮</span>
+            {creatingSession ? 'Creating Session...' : 'Create New Session'}
+            <span className="button-description">Start hosting a new game</span>
+          </button>
+          {creationError && (
+            <p className="error">Error creating session: {creationError.message}</p>
           )}
+        </div>
+      </div>
+    );
+  }
 
-          {sessionData?.gameSession?.players && (
-            <div className="players-list card">
-              <h3>Players ({sessionData.gameSession.players.length})</h3>
-              {sessionData.gameSession.players.map(player => (
+  return (
+    <div className="game-container">
+      <button 
+        className="back-button"
+        onClick={onBack}
+      >
+        <span className="button-icon">←</span>
+        Back to Menu
+      </button>
+
+      <div className="host-layout">
+        <div className="host-sidebar">
+          <div className="card action-card">
+            <h2 className="title">Game Management</h2>
+            <div className="session-info">
+              <p className="subtitle">Game Code: <strong>{sessionCode}</strong></p>
+              <button 
+                onClick={() => navigator.clipboard.writeText(sessionCode)}
+                className="copy-button"
+              >
+                <span className="button-icon">📋</span>
+                Copy Code
+              </button>
+            </div>
+
+            {!gameInProgress && (
+              <div className="game-settings">
+                <h3>Game Settings</h3>
+                <div className="setting-item">
+                  <label htmlFor="maxQuestions">Number of Questions:</label>
+                  <input
+                    id="maxQuestions"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={maxQuestions}
+                    onChange={(e) => setMaxQuestions(Math.max(1, Math.min(20, parseInt(e.target.value) || 10)))}
+                    disabled={gameInProgress}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="players-list">
+              <h3>Players ({sessionData?.gameSession?.players?.length || 0})</h3>
+              {sessionData?.gameSession?.players?.map(player => (
                 <div key={player.id} className="player-item">
                   <div className="player-info">
                     <span className="player-name">{player.name}</span>
@@ -122,48 +146,63 @@ function HostView({ isHost = true }) {
                       {player.ready ? '●' : '○'}
                     </span>
                   </div>
-                  {isHost && (
-                    <button 
-                      onClick={() => removePlayer({
-                        variables: {
-                          playerId: player.id,
-                          sessionCode
-                        }
-                      })}
-                      className="remove-player-button"
-                      title="Remove player"
-                    >
-                      ✕
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => removePlayer({
+                      variables: {
+                        playerId: player.id,
+                        sessionCode
+                      }
+                    })}
+                    className="remove-player-button"
+                    title="Remove player"
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>
-          )}
 
-          {isHost && !gameInProgress && (
-            <button 
-              onClick={() => startGame()} 
-              disabled={startingGame || !allPlayersReady || sessionData?.gameSession?.players?.length === 0}
-              className="mt-4 start-button"
-            >
-              {startingGame ? 'Starting...' : 
-               sessionData?.gameSession?.players?.length === 0 ? 'Waiting for players...' :
-               !allPlayersReady ? 'Waiting for players to be ready...' : 
-               'Start Game'}
-            </button>
+            <div className="session-actions">
+              {!gameInProgress && (
+                <>
+                  <button 
+                    onClick={() => startGame()} 
+                    disabled={startingGame || !allPlayersReady || !sessionData?.gameSession?.players?.length}
+                    className="start-button"
+                  >
+                    <span className="button-icon">▶️</span>
+                    {startingGame ? 'Starting...' : 
+                     !sessionData?.gameSession?.players?.length ? 'Waiting for players...' :
+                     !allPlayersReady ? 'Waiting for players to be ready...' : 
+                     'Start Game'}
+                  </button>
+                  <button 
+                    onClick={() => cancelGame()}
+                    className="cancel-button"
+                  >
+                    <span className="button-icon">❌</span>
+                    Cancel Game
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="game-content">
+          {true && (
+            <GamePage 
+              sessionCode={sessionCode} 
+              player={{ 
+                id: 'host',
+                name: 'Host',
+                isHost: true
+              }} 
+            />
           )}
         </div>
-      ) : isHost ? (
-        <button onClick={() => createSession()} disabled={creatingSession}>
-          {creatingSession ? 'Creating...' : 'Create Session'}
-        </button>
-      ) : null}
+      </div>
 
-      {/* Error handling */}
-      {creationError && (
-        <p className="error">Error creating session: {creationError.message}</p>
-      )}
       {startError && (
         <p className="error">Error starting game: {startError.message}</p>
       )}
