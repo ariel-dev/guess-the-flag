@@ -71,17 +71,16 @@ export const START_GAME = gql`
 `;
 
 export const JOIN_GAME_SESSION = gql`
-  mutation JoinGameSession($sessionCode: String!, $playerName: String!, $existingPlayerId: ID) {
-    joinGameSession(sessionCode: $sessionCode, playerName: $playerName, existingPlayerId: $existingPlayerId) {
+  mutation JoinGameSession($sessionCode: String!, $name: String!) {
+    joinGameSession(sessionCode: $sessionCode, name: $name) {
+      success
+      errors
       player {
         id
         name
         ready
         score
-        gameSession {
-          id
-          sessionCode
-        }
+        gameSessionId
       }
     }
   }

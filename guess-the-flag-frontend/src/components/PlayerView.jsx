@@ -40,21 +40,26 @@ function PlayerView({ onBack }) {
   });
 
   const [joinGame, { loading: joining }] = useMutation(JOIN_GAME_SESSION, {
+    variables: { sessionCode },
     onCompleted: (data) => {
       console.log('Join game completed:', data);
-      const joinedPlayer = data.joinGameSession.player;
-      setPlayer(joinedPlayer);
-      saveSessionData(sessionCode, joinedPlayer);
-      setErrorMessage(null);
-      
-      // Immediately check game state after joining
-      refetch().then(({ data }) => {
-        console.log('Checking game state after join:', data);
-        if (data?.gameSession?.active && data?.gameSession?.currentQuestion) {
-          console.log('Setting game as started after join');
-          setGameStarted(true);
-        }
-      });
+      if (data.joinGameSession.success) {
+        const joinedPlayer = data.joinGameSession.player;
+        setPlayer(joinedPlayer);
+        saveSessionData(sessionCode, joinedPlayer);
+        setErrorMessage(null);
+        
+        // Immediately check game state after joining
+        refetch().then(({ data }) => {
+          console.log('Checking game state after join:', data);
+          if (data?.gameSession?.active && data?.gameSession?.currentQuestion) {
+            console.log('Setting game as started after join');
+            setGameStarted(true);
+          }
+        });
+      } else {
+        setErrorMessage(data.joinGameSession.errors.join(', '));
+      }
     },
     onError: (error) => {
       console.error('Join game error:', error);
@@ -88,7 +93,7 @@ function PlayerView({ onBack }) {
     joinGame({
       variables: {
         sessionCode: sessionCode.trim(),
-        playerName: playerName.trim(),
+        name: playerName.trim(),
       },
     }).catch(error => {
       setErrorMessage(error.message);
@@ -104,17 +109,20 @@ function PlayerView({ onBack }) {
     joinGame({
       variables: {
         sessionCode: previousSession.sessionCode,
-        playerName: previousSession.playerName,
-        existingPlayerId: previousSession.playerId,
+        name: previousSession.playerName,
       },
-    }).then(() => {
-      console.log('Successfully rejoined, resetting WebSocket');
-      // Re-establish WebSocket connection
-      setWsConnected(false);
-      return new Promise(resolve => setTimeout(() => {
-        setWsConnected(true);
-        resolve();
-      }, 100));
+    }).then((response) => {
+      if (response.data.joinGameSession.success) {
+        console.log('Successfully rejoined, resetting WebSocket');
+        // Re-establish WebSocket connection
+        setWsConnected(false);
+        return new Promise(resolve => setTimeout(() => {
+          setWsConnected(true);
+          resolve();
+        }, 100));
+      } else {
+        throw new Error(response.data.joinGameSession.errors.join(', '));
+      }
     }).then(() => {
       console.log('WebSocket reset, fetching game state');
       // Fetch the latest game state
