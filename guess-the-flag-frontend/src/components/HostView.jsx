@@ -115,12 +115,16 @@ function HostView({ isHost = true, onBack }) {
     });
   };
 
+  const handleBack = () => {
+    onBack();
+  };
+
   if (!sessionCode) {
     return (
       <div className="game-container">
         <button 
           className="back-button"
-          onClick={onBack}
+          onClick={handleBack}
         >
           <span className="button-icon">←</span>
           Back to Menu
@@ -155,7 +159,7 @@ function HostView({ isHost = true, onBack }) {
       />
       <button 
         className="back-button"
-        onClick={onBack}
+        onClick={handleBack}
       >
         <span className="button-icon">←</span>
         Back to Menu

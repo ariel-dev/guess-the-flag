@@ -753,4 +753,78 @@ h1 {
 .status-message {
   color: rgba(255, 255, 255, 0.9);
   margin: 0;
+}
+
+/* Leaderboard styles */
+.leaderboard {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.leaderboard h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: white;
+  font-size: 2rem;
+}
+
+.final-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.player-score-item {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.player-score-item:hover {
+  transform: translateY(-2px);
+}
+
+.player-score-item.current-player {
+  background: linear-gradient(45deg, rgba(74, 144, 226, 0.2), rgba(103, 178, 111, 0.2));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.rank {
+  font-size: 1.5rem;
+  font-weight: bold;
+  width: 40px;
+  text-align: center;
+}
+
+.player-details {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 1rem;
+}
+
+.player-name {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.final-score {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.trophy {
+  font-size: 1.5rem;
+  margin-left: 1rem;
 } 

@@ -10,6 +10,7 @@ function GamePage({ sessionCode, player }) {
   const [answersSubmitted, setAnswersSubmitted] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(20);
+  const [finalScores, setFinalScores] = useState(null);
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -71,6 +72,7 @@ function GamePage({ sessionCode, player }) {
         setLastAnswerCorrect(null);
         setAnswersSubmitted(0);
         setTimeRemaining(20);
+        setFinalScores(null);
         refetch();
         break;
       case 'answer_progress':
@@ -87,12 +89,14 @@ function GamePage({ sessionCode, player }) {
       case 'game_finished':
         setSelectedAnswer(null);
         setLastAnswerCorrect(null);
+        setFinalScores(data.data.final_scores);
         refetch();
         break;
       case 'game_cancelled':
         setSelectedAnswer(null);
         setLastAnswerCorrect(null);
         setAnswersSubmitted(0);
+        setFinalScores(null);
         refetch();
         break;
       case 'question_timer_start':
@@ -122,6 +126,36 @@ function GamePage({ sessionCode, player }) {
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
+
+  if (finalScores) {
+    return (
+      <div className="game-page">
+        <ActionCableConsumer
+          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
+          onReceived={handleReceived}
+        />
+        <div className="leaderboard">
+          <h2>🏆 Game Over - Final Scores 🏆</h2>
+          <div className="final-scores">
+            {finalScores.map((playerScore, index) => (
+              <div 
+                key={playerScore.id} 
+                className={`player-score-item ${playerScore.id === player.id ? 'current-player' : ''}`}
+              >
+                <div className="rank">{index + 1}</div>
+                <div className="player-details">
+                  <span className="player-name">{playerScore.name}</span>
+                  <span className="final-score">Score: {playerScore.score}</span>
+                </div>
+                {index === 0 && <span className="trophy">👑</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!gameData?.gameSession?.currentQuestion) return <div>Waiting for game to start...</div>;
 
   const { currentQuestion } = gameData.gameSession;
