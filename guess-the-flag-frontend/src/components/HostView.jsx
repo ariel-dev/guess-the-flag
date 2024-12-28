@@ -9,7 +9,6 @@ function HostView({ isHost = true, onBack }) {
     return localStorage.getItem('hostSessionCode');
   });
   const [maxQuestions, setMaxQuestions] = useState(10);
-  const [wsConnected, setWsConnected] = useState(false);
   const [hostPlayer, setHostPlayer] = useState(null);
 
   const handleReceived = (data) => {
@@ -161,17 +160,17 @@ function HostView({ isHost = true, onBack }) {
         onDisconnected={() => setWsConnected(false)}
         onReceived={handleReceived}
       />
-      <button 
-        className="back-button"
-        onClick={handleBack}
-      >
-        <span className="button-icon">←</span>
-        Back to Menu
-      </button>
 
       <div className="host-layout">
         <div className="host-sidebar">
           <div className="card action-card">
+            <button 
+              className="back-button"
+              onClick={handleBack}
+            >
+              <span className="button-icon">←</span>
+              Back to Menu
+            </button>
             <h2 className="title">Host</h2>
             <div className="session-info">
               <p className="subtitle">Game Code: <strong>{sessionCode}</strong></p>
@@ -282,13 +281,6 @@ function HostView({ isHost = true, onBack }) {
 
       {startError && (
         <p className="error">Error starting game: {startError.message}</p>
-      )}
-
-      {wsConnected && (
-        <div className="connection-status connected">
-          <span className="status-dot">🟢</span>
-          Connected
-        </div>
       )}
     </div>
   );
