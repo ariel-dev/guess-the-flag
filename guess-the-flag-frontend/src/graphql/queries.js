@@ -113,7 +113,6 @@ export const CANCEL_GAME_SESSION = gql`
     cancelGameSession(sessionCode: $sessionCode) {
       success
       errors
-      new_session_code
     }
   }
 `;

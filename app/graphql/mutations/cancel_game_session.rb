@@ -4,46 +4,31 @@ module Mutations
 
     field :success, Boolean, null: false
     field :errors, [String], null: false
-    field :new_session_code, String, null: true
 
     def resolve(session_code:)
-      game_session = GameSession.find_by(code: session_code)
+      game_session = GameSession.find_by(session_code: session_code)
 
       if game_session.nil?
         return {
           success: false,
-          errors: ["Game session not found"],
-          new_session_code: nil
+          errors: ["Game session not found"]
         }
       end
 
-      # Create a new game session
-      new_session = GameSession.create!
-
-      # Copy players to the new session, preserving host status
-      game_session.players.each do |player|
-        new_session.players.create!(
-          name: player.name,
-          is_host: player.is_host
-        )
-      end
-
-      # Broadcast game cancelled event with new session code
+      # Broadcast game cancelled event
       ActionCable.server.broadcast(
         "game_session_#{session_code}",
         {
-          type: 'game_cancelled',
-          new_session_code: new_session.code
+          event: 'game_cancelled'
         }
       )
 
-      # Delete the old session
+      # Delete the session
       game_session.destroy
 
       {
         success: true,
-        errors: [],
-        new_session_code: new_session.code
+        errors: []
       }
     end
   end

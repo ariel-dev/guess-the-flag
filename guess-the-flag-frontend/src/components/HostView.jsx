@@ -60,10 +60,8 @@ function HostView({ isHost = true, onBack }) {
     variables: { sessionCode },
     onCompleted: (data) => {
       if (data.cancelGameSession.success) {
-        const new_session_code = data.cancelGameSession.new_session_code;
-        setSessionCode(new_session_code);
-        localStorage.setItem('hostSessionCode', new_session_code);
-        refetch();
+        localStorage.removeItem('hostSessionCode');
+        onBack();
       }
     },
   });
@@ -97,20 +95,24 @@ function HostView({ isHost = true, onBack }) {
     cancelGame({
       variables: { sessionCode },
       onCompleted: (data) => {
-        console.log('Cancel game response:', data);
-        if (data.cancelGameSession.success && data.cancelGameSession.new_session_code) {
-          setSessionCode(data.cancelGameSession.new_session_code);
-          localStorage.setItem('hostSessionCode', data.cancelGameSession.new_session_code);
-          refetch();
+        if (data.cancelGameSession.success) {
+          localStorage.removeItem('hostSessionCode');
+          onBack();
         } else {
-          // If game session not found, create a new one
-          createSession();
+          // If game session not found, clean up local state
+          if (data.cancelGameSession.errors.includes("Game session not found")) {
+            localStorage.removeItem('hostSessionCode');
+            onBack();
+          } else {
+            console.error('Failed to cancel game:', data.cancelGameSession.errors);
+          }
         }
       },
       onError: (error) => {
+        // If there's a network error or other issue, clean up local state
         console.error('Error canceling game:', error);
-        // If there's an error (like session not found), create a new session
-        createSession();
+        localStorage.removeItem('hostSessionCode');
+        onBack();
       }
     });
   };
@@ -232,25 +234,35 @@ function HostView({ isHost = true, onBack }) {
             )}
 
             <div className="session-actions">
-              <button 
-                onClick={handleCancelGame}
-                className="cancel-button"
-              >
-                <span className="button-icon">{gameInProgress ? '🔄' : '❌'}</span>
-                {gameInProgress ? 'Restart Game' : 'Cancel Game'}
-              </button>
-              {!gameInProgress && (
+              {gameInProgress ? (
                 <button 
-                  onClick={() => startGame()} 
-                  disabled={startingGame || !allPlayersReady || !sessionData?.gameSession?.players?.length}
-                  className="start-button"
+                  onClick={handleCancelGame}
+                  className="cancel-button"
                 >
-                  <span className="button-icon">▶️</span>
-                  {startingGame ? 'Starting...' : 
-                   !sessionData?.gameSession?.players?.length ? 'Waiting for players...' :
-                   !allPlayersReady ? 'Waiting for players to be ready...' : 
-                   'Start Game'}
+                  <span className="button-icon">❌</span>
+                  Cancel Game
                 </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => startGame()} 
+                    disabled={startingGame || !allPlayersReady || !sessionData?.gameSession?.players?.length}
+                    className="start-button"
+                  >
+                    <span className="button-icon">▶️</span>
+                    {startingGame ? 'Starting...' : 
+                     !sessionData?.gameSession?.players?.length ? 'Waiting for players...' :
+                     !allPlayersReady ? 'Waiting for players to be ready...' : 
+                     'Start Game'}
+                  </button>
+                  <button 
+                    onClick={handleCancelGame}
+                    className="cancel-button"
+                  >
+                    <span className="button-icon">❌</span>
+                    Cancel Session
+                  </button>
+                </>
               )}
             </div>
           </div>
