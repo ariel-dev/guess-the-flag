@@ -19,14 +19,6 @@ function HostView({ isHost = true, onBack }) {
         // Update the session data to reflect the new player
         refetch();
         break;
-      case 'game_cancelled':
-        // Update to the new session code and refetch game state
-        if (data.data.newSessionCode) {
-          setSessionCode(data.data.newSessionCode);
-          localStorage.setItem('hostSessionCode', data.data.newSessionCode);
-          refetch();
-        }
-        break;
       default:
         refetch();
         break;

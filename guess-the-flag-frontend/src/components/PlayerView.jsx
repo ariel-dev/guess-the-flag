@@ -106,11 +106,22 @@ function PlayerView({ onBack }) {
     setErrorMessage(null);
     setSessionCode(previousSession.sessionCode);
     
-    joinGame({
-      variables: {
-        sessionCode: previousSession.sessionCode,
-        name: previousSession.playerName,
-      },
+    // First check if the game session exists and is active
+    refetch({
+      variables: { sessionCode: previousSession.sessionCode }
+    }).then(({ data }) => {
+      if (!data?.gameSession) {
+        throw new Error('Game session no longer exists');
+      }
+      
+      // If session exists, attempt to rejoin
+      return joinGame({
+        variables: {
+          sessionCode: previousSession.sessionCode,
+          name: previousSession.playerName,
+          playerId: previousSession.playerId
+        },
+      });
     }).then((response) => {
       if (response.data.joinGameSession.success) {
         console.log('Successfully rejoined, resetting WebSocket');
@@ -137,6 +148,9 @@ function PlayerView({ onBack }) {
     }).catch(error => {
       console.error('Error during rejoin:', error);
       setErrorMessage(error.message);
+      // Clear previous session data if the session no longer exists
+      localStorage.removeItem('previousSession');
+      setPreviousSession(null);
     });
   };
 
@@ -149,13 +163,8 @@ function PlayerView({ onBack }) {
         refetch();
         break;
       case 'game_cancelled':
-        // Update session code and reset game state
-        if (data.data.newSessionCode) {
-          setSessionCode(data.data.newSessionCode);
-          setGameStarted(false);
-          saveSessionData(data.data.newSessionCode, player);
-          refetch();
-        }
+        // Show a message to the user that the game has been cancelled
+        setErrorMessage("The host has ended the game session. You can join a new game or return to the menu.");
         break;
       default:
         refetch();
@@ -171,6 +180,8 @@ function PlayerView({ onBack }) {
         playerId: player.id,
         sessionCode: sessionCode,
       },
+    }).then(() => {
+      onBack();
     }).catch(error => {
       setErrorMessage(error.message);
     });
@@ -229,6 +240,25 @@ function PlayerView({ onBack }) {
             </div>
           </div>
           
+          {sessionData?.gameSession?.players && (
+            <div className="players-list">
+              <h3>Players ({sessionData.gameSession.players.length})</h3>
+              {sessionData.gameSession.players.map((p) => (
+                <div key={p.id} className="player-item">
+                  <div className="player-info">
+                    <span className="player-name">{p.name}</span>
+                    <div className="player-stats">
+                      <span className="player-score">Score: {p.score || 0}</span>
+                      <span className={`status-dot ${p.ready ? 'ready' : 'not-ready'}`}>
+                        {p.ready ? '●' : '○'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
           {!player.ready ? (
             <div className="button-group">
               <button 
@@ -282,7 +312,7 @@ function PlayerView({ onBack }) {
         <h2 className="title">Join Game</h2>
         <p className="subtitle">Enter a session code to join an existing game</p>
         
-        {previousSession && (
+        {previousSession && !errorMessage?.includes('no longer exists') && (
           <div className="previous-session">
             <h3>Previous Session</h3>
             <p>Code: <strong>{previousSession.sessionCode}</strong></p>

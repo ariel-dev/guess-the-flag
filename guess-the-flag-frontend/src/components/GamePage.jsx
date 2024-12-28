@@ -156,7 +156,53 @@ function GamePage({ sessionCode, player }) {
     );
   }
 
-  if (!gameData?.gameSession?.currentQuestion) return <div>Waiting for game to start...</div>;
+  if (!gameData?.gameSession?.currentQuestion) {
+    return (
+      <div className="game-page waiting-screen">
+        <ActionCableConsumer
+          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
+          onReceived={handleReceived}
+        />
+        <div className="waiting-content">
+          <h2>🎮 Waiting Room</h2>
+          
+          <div className="session-info">
+            <p className="info-item">
+              <span className="label">Session Code:</span>
+              <span className="value">{sessionCode}</span>
+            </p>
+            <p className="info-item">
+              <span className="label">Your Name:</span>
+              <span className="value">{player.name}</span>
+            </p>
+          </div>
+
+          <div className="waiting-players">
+            <h3>Players in Room</h3>
+            <div className="players-list">
+              {gameData?.gameSession?.players?.map((p) => (
+                <div 
+                  key={p.id} 
+                  className={`player-item ${p.id === player.id ? 'current-player' : ''}`}
+                >
+                  <span className="player-name">{p.name}</span>
+                  <div className="status-dot ready">●</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="loading-animation">
+            <div className="dot"></div>
+            <div className="dot"></div>
+            <div className="dot"></div>
+          </div>
+          
+          <p className="waiting-message">Waiting for host to start the game...</p>
+        </div>
+      </div>
+    );
+  }
 
   const { currentQuestion } = gameData.gameSession;
 
@@ -167,47 +213,49 @@ function GamePage({ sessionCode, player }) {
         onReceived={handleReceived}
       />
 
-      <div className="game-header">
-        <div className="score">Score: {score}</div>
-        <div className="timer">Time: {timeRemaining}s</div>
-        <div className="progress">
-          {answersSubmitted > 0 && (
-            <div>Answers submitted: {answersSubmitted}/{totalPlayers}</div>
+      <div className="game-content">
+        <div className="game-header">
+          <div className="score">Score: {score}</div>
+          <div className="timer">Time: {timeRemaining}s</div>
+          <div className="progress">
+            {answersSubmitted > 0 && (
+              <div>Answers submitted: {answersSubmitted}/{totalPlayers}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="question-container">
+          <h2>{currentQuestion.prompt}</h2>
+          
+          <div className="flag-container">
+            <img 
+              src={currentQuestion.flag.imageUrl} 
+              alt="Flag" 
+              className="flag-image"
+            />
+          </div>
+
+          <div className="choices-grid">
+            {currentQuestion.choices.map((choice) => (
+              <button
+                key={choice.id}
+                onClick={() => handleAnswerSelect(choice.id)}
+                disabled={selectedAnswer !== null || timeRemaining === 0}
+                className={`choice-button ${
+                  selectedAnswer === choice.id ? 'selected' : ''
+                } ${timeRemaining === 0 ? 'disabled' : ''}`}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+
+          {lastAnswerCorrect !== null && (
+            <div className={`answer-result ${lastAnswerCorrect ? 'correct' : 'incorrect'}`}>
+              {lastAnswerCorrect ? '✅ Correct!' : '❌ Incorrect'}
+            </div>
           )}
         </div>
-      </div>
-
-      <div className="question-container">
-        <h2>{currentQuestion.prompt}</h2>
-        
-        <div className="flag-container">
-          <img 
-            src={currentQuestion.flag.imageUrl} 
-            alt="Flag" 
-            className="flag-image"
-          />
-        </div>
-
-        <div className="choices-grid">
-          {currentQuestion.choices.map((choice) => (
-            <button
-              key={choice.id}
-              onClick={() => handleAnswerSelect(choice.id)}
-              disabled={selectedAnswer !== null || timeRemaining === 0}
-              className={`choice-button ${
-                selectedAnswer === choice.id ? 'selected' : ''
-              } ${timeRemaining === 0 ? 'disabled' : ''}`}
-            >
-              {choice.label}
-            </button>
-          ))}
-        </div>
-
-        {lastAnswerCorrect !== null && (
-          <div className={`answer-result ${lastAnswerCorrect ? 'correct' : 'incorrect'}`}>
-            {lastAnswerCorrect ? '✅ Correct!' : '❌ Incorrect'}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -11,5 +11,6 @@ module Types
     field :submit_answer, mutation: Mutations::SubmitAnswer
     field :cancel_game_session, mutation: Mutations::CancelGameSession
     field :remove_player, mutation: Mutations::RemovePlayer
+    field :leave_game_session, mutation: Mutations::LeaveGameSession
   end
 end

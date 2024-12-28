@@ -6,13 +6,14 @@ module Mutations
     # Define arguments
     argument :session_code, String, required: true, description: "The session code of the game session to join."
     argument :name, String, required: true, description: "The name of the player joining the session."
+    argument :player_id, ID, required: false, description: "The ID of the player if rejoining a session."
 
     # Define the return field
     field :success, Boolean, null: false
     field :errors, [String], null: false
-    field :player, Types::PlayerType, null: true, description: "The newly created player."
+    field :player, Types::PlayerType, null: true, description: "The player that joined."
 
-    def resolve(session_code:, name:)
+    def resolve(session_code:, name:, player_id: nil)
       game_session = GameSession.find_by(session_code: session_code)
       
       if game_session.nil?
@@ -23,16 +24,27 @@ module Mutations
         }
       end
 
-      # Check if this is the first player joining
-      is_first_player = game_session.players.count == 0
+      # Try to find existing player if player_id is provided
+      player = if player_id.present?
+        existing_player = Player.find_by(id: player_id)
+        if existing_player && existing_player.game_session_id == game_session.id
+          existing_player.update(name: name)
+          existing_player
+        end
+      end
 
-      player = game_session.players.create(
-        name: name,
-        is_host: is_first_player
-      )
+      # If no player_id provided or player not found, create new player
+      if player.nil?
+        # Check if this is the first player joining
+        is_first_player = game_session.players.count == 0
+        player = game_session.players.create(
+          name: name,
+          is_host: is_first_player
+        )
+      end
 
       if player.persisted?
-        # Broadcast to all players that a new player has joined
+        # Broadcast to all players that a player has joined/rejoined
         ActionCable.server.broadcast(
           "game_session_#{session_code}",
           {
