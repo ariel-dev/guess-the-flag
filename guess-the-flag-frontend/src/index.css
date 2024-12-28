@@ -644,7 +644,6 @@ h1 {
   display: flex;
   gap: 2rem;
   padding: 1rem;
-  margin-top: 3rem; /* Space for the back button */
 }
 
 .host-sidebar {
@@ -844,10 +843,9 @@ h1 {
 .game-content {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
-  padding: 2rem;
+  padding: .5rem;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  max-width: 800px;
   width: 90%;
   color: white;
 }
@@ -877,6 +875,7 @@ h1 {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  min-width: 60vw;
   background: linear-gradient(135deg, #1a1a1a 0%, #2d3436 100%);
 }
 
