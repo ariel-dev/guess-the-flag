@@ -216,7 +216,7 @@ function HostView({ isHost = true, onBack }) {
                         </span>
                       </div>
                     </div>
-                    {isHost && !gameInProgress && (
+                    {isHost && !gameInProgress && !player.isHost && (
                       <button 
                         onClick={() => removePlayer({
                           variables: {
