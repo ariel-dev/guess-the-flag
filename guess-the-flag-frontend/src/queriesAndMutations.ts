@@ -110,11 +110,13 @@ export const GET_CURRENT_QUESTION = gql`
   query GetCurrentQuestion($sessionCode: String!) {
     getCurrentQuestion(sessionCode: $sessionCode) {
       id
-      flagImageUrl
-      timeLimit
+      prompt
+      flag {
+        imageUrl
+      }
       choices {
         id
-        text
+        label
       }
     }
   }

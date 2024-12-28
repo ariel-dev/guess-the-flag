@@ -17,26 +17,21 @@ module Mutations
         }
       end
 
-      # Start the game
-      game_session.update!(active: true, max_questions: max_questions)
-      game_session.set_first_question!
+      begin
+        # Start the game - this will now handle everything including broadcasting
+        game_session.update!(max_questions: max_questions)
+        game_session.set_first_question!
 
-      # Broadcast to all players that the game has started
-      ActionCable.server.broadcast(
-        "game_session_#{session_code}",
         {
-          event: "game_started",
-          data: {
-            active: true,
-            current_question: game_session.current_question
-          }
+          game_session: game_session,
+          errors: []
         }
-      )
-
-      {
-        game_session: game_session,
-        errors: []
-      }
+      rescue StandardError => e
+        {
+          game_session: nil,
+          errors: [e.message]
+        }
+      end
     end
   end
 end

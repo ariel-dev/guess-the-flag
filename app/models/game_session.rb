@@ -1,53 +1,49 @@
 class GameSession < ApplicationRecord
   # Associations
   has_many :players, dependent: :destroy
+  has_many :game_session_questions, dependent: :destroy
+  has_many :questions, through: :game_session_questions
   belongs_to :current_question, class_name: 'Question', optional: true
 
   # Validations
   validates :session_code, presence: true, uniqueness: true
   validates :active, inclusion: { in: [true, false] }
+  validates :max_questions, presence: true, numericality: { only_integer: true, greater_than: 0 }
+  
+  # Default value for max_questions if you want one
+  after_initialize :set_default_max_questions, if: :new_record?
 
   def set_first_question!
-    first_question = Question.order("RANDOM()").first
+    # Load and shuffle questions for the game
+    available_questions = Question.order("RANDOM()").limit(max_questions)
     
-    if first_question
-      # Reset counters when starting a new game
-      update!(
-        current_question: first_question,
-        questions_count: 1,
-        active: true
-      )
-      players.update_all(has_answered: false)
-      
-      ActionCable.server.broadcast(
-        "game_session_#{session_code}",
-        {
-          event: "game_started",
-          data: {
-            active: true,
-            current_question: {
-              id: first_question.id,
-              prompt: first_question.prompt,
-              flag: {
-                imageUrl: first_question.flag.image_url
-              },
-              choices: first_question.choices.map { |c| 
-                { id: c.id, label: c.label }
-              }
-            },
-            questions_remaining: max_questions - 1
-          }
-        }
-      )
-    else
+    if available_questions.empty?
       raise StandardError.new("No questions available in the database")
     end
+
+    # Create ordered game questions
+    available_questions.each_with_index do |question, index|
+      game_session_questions.create!(
+        question: question,
+        order: index + 1
+      )
+    end
+
+    # Set first question
+    first_question = questions.first
+    update!(
+      current_question: first_question,
+      questions_count: 1,
+      active: true
+    )
+    players.update_all(has_answered: false)
+    
+    broadcast_current_question(first_question)
   end
 
   def next_question!
     return unless active
     
-    # Check if we've reached max questions before proceeding
     if questions_count >= max_questions
       update!(active: false)
       broadcast_game_finished
@@ -57,11 +53,10 @@ class GameSession < ApplicationRecord
     transaction do
       players.update_all(has_answered: false)
       
-      used_question_ids = Question.joins(:game_sessions)
-                                 .where(game_sessions: { id: id })
-                                 .pluck(:id)
-      
-      next_question = Question.where.not(id: used_question_ids).order("RANDOM()").first
+      next_question = game_session_questions
+        .where('order > ?', questions_count)
+        .order(:order)
+        .first&.question
       
       if next_question
         update!(
@@ -69,26 +64,7 @@ class GameSession < ApplicationRecord
           questions_count: questions_count + 1
         )
         
-        # Broadcast the next question with complete data
-        ActionCable.server.broadcast(
-          "game_session_#{session_code}",
-          {
-            event: "next_question",
-            data: {
-              questions_remaining: max_questions - questions_count,
-              current_question: {
-                id: next_question.id,
-                prompt: next_question.prompt,
-                flag: {
-                  imageUrl: next_question.flag.image_url
-                },
-                choices: next_question.choices.map { |c| 
-                  { id: c.id, label: c.label }
-                }
-              }
-            }
-          }
-        )
+        broadcast_current_question(next_question)
       else
         update!(active: false)
         broadcast_game_finished
@@ -113,9 +89,15 @@ class GameSession < ApplicationRecord
   def check_all_players_answered
     return unless active && current_question
     
-    if players.where(has_answered: false).count.zero?
-      # All players have answered, move to next question after delay
-      next_question!
+    # Use with_lock to prevent race conditions
+    with_lock do
+      # Check again inside the lock as conditions might have changed
+      return unless active && current_question
+      
+      if all_players_answered?
+        # All players have answered, move to next question after delay
+        handle_all_answers_received
+      end
     end
   end
 
@@ -188,6 +170,33 @@ class GameSession < ApplicationRecord
         data: {
           total: total_players,
           answered: answered_players
+        }
+      }
+    )
+  end
+
+  def set_default_max_questions
+    self.max_questions ||= 10  # Set default to 10 questions per game
+  end
+
+  def broadcast_current_question(question)
+    ActionCable.server.broadcast(
+      "game_session_#{session_code}",
+      {
+        event: questions_count == 1 ? "game_started" : "next_question",
+        data: {
+          active: true,
+          questions_remaining: max_questions - questions_count,
+          current_question: {
+            id: question.id,
+            prompt: question.prompt,
+            flag: {
+              imageUrl: question.flag.image_url
+            },
+            choices: question.choices.map { |c| 
+              { id: c.id, label: c.label }
+            }
+          }
         }
       }
     )
