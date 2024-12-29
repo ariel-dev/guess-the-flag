@@ -123,14 +123,15 @@ function GamePage({ sessionCode, player }) {
     }
   };
 
-  const handleAnswerSelect = (choiceId) => {
+  const handleAnswerSelect = (choice) => {
     if (submitting || selectedAnswer || timeRemaining === 0) return;
     
-    setSelectedAnswer(choiceId);
+    setSelectedAnswer(choice.id);
+    setLastAnswerCorrect(choice.isCorrect);
     submitAnswer({
       variables: {
         questionId: gameData.gameSession.currentQuestion.id,
-        answerId: choiceId,
+        answerId: choice.id,
         playerId: player.id,
       },
     });
@@ -221,7 +222,7 @@ function GamePage({ sessionCode, player }) {
             {currentQuestion.choices.map((choice) => (
               <button
                 key={choice.id}
-                onClick={() => handleAnswerSelect(choice.id)}
+                onClick={() => handleAnswerSelect(choice)}
                 disabled={selectedAnswer !== null || timeRemaining === 0}
                 className={`choice-button ${
                   selectedAnswer === choice.id ? 'selected' : ''

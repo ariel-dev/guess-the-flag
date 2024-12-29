@@ -5,6 +5,6 @@ module Types
 
     field :id, ID, null: false
     field :label, String, null: false
-    field :is_correct, Boolean, null: false, method: :correct_choice?
+    field :is_correct, Boolean, null: false, method: :correct
   end
 end

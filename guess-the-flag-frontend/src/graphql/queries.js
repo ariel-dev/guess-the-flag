@@ -15,6 +15,7 @@ export const GET_GAME_SESSION = gql`
         choices {
           id
           label
+          isCorrect
         }
       }
       players {
