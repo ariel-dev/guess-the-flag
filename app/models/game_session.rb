@@ -8,6 +8,7 @@ class GameSession < ApplicationRecord
   # Validations
   validates :session_code, presence: true, uniqueness: true
   validates :active, inclusion: { in: [true, false] }
+  validates :completed, inclusion: { in: [true, false] }
   validates :max_questions, presence: true, numericality: { only_integer: true, greater_than: 0 }
   
   # Default value for max_questions if you want one
@@ -140,6 +141,39 @@ class GameSession < ApplicationRecord
         handle_all_answers_received
       end
     end
+  end
+
+  def finish_game
+    update!(active: false, completed: true)
+    
+    final_scores = players.order(score: :desc).map do |player|
+      {
+        id: player.id,
+        name: player.name,
+        score: player.score
+      }
+    end
+
+    ActionCable.server.broadcast(
+      "game_session_#{session_code}",
+      {
+        event: "game_finished",
+        data: {
+          final_scores: final_scores
+        }
+      }
+    )
+  end
+
+  def cancel_game
+    update!(active: false, completed: false)
+    
+    ActionCable.server.broadcast(
+      "game_session_#{session_code}",
+      {
+        event: "game_cancelled"
+      }
+    )
   end
 
   private

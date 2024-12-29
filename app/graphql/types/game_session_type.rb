@@ -6,6 +6,7 @@ module Types
     field :id, ID, null: false
     field :session_code, String, null: false
     field :active, Boolean, null: false
+    field :completed, Boolean, null: false
     field :players, [Types::PlayerType], null: false, description: "List of players in the game session."
     field :current_question, Types::QuestionType, null: true, description: "The current question being asked."
     field :questions_count, Integer, null: false

@@ -6,6 +6,7 @@ export const GET_GAME_SESSION = gql`
       id
       sessionCode
       active
+      completed
       currentQuestion {
         id
         prompt
