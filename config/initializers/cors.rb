@@ -7,12 +7,23 @@
 
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins ENV.fetch('CORS_ORIGINS', 'http://localhost:5173,https://guess-the-flag-fe-2.onrender.com')
+    origins ENV.fetch('CORS_ORIGINS', 'http://localhost:5173').split(',')
 
     resource '*',
       headers: :any,
       methods: [:get, :post, :put, :patch, :delete, :options, :head],
       expose: ['access-token', 'expiry', 'token-type', 'uid', 'client'],
-      credentials: true
+      credentials: true,
+      max_age: 3600,
+      if: proc { |env| 
+        # Handle preflight requests
+        if env['REQUEST_METHOD'] == 'OPTIONS'
+          headers = env['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']
+          method = env['HTTP_ACCESS_CONTROL_REQUEST_METHOD']
+          [headers, method].all?
+        else
+          true
+        end
+      }
   end
 end
