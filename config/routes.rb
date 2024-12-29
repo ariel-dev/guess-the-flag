@@ -1,4 +1,9 @@
+require 'sidekiq/web'
+
 Rails.application.routes.draw do
+  # Mount Sidekiq web interface
+  mount Sidekiq::Web => '/sidekiq'
+
   # GraphQL endpoint
   post "/graphql", to: "graphql#execute"
 

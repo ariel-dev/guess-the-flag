@@ -38,6 +38,9 @@ gem "rack-cors"
 
 gem 'graphql', '~> 2.0'
 
+# Background job processing
+gem 'sidekiq', '~> 7.0'
+
 # Add these lines
 gem 'redis'
 gem 'hiredis'

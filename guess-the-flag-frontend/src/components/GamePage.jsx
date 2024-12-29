@@ -10,45 +10,9 @@ function GamePage({ sessionCode, player }) {
   const [score, setScore] = useState(player.score || 0);
   const [answersSubmitted, setAnswersSubmitted] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(20);
+  const [timeRemaining, setTimeRemaining] = useState(0);
   const [finalScores, setFinalScores] = useState(null);
   const timerRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      // Cleanup timer on unmount
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
-
-  const startTimer = (startTime, durationSeconds) => {
-    // Clear any existing timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    // Convert start time string to Date object
-    const startTimeDate = new Date(startTime);
-    const endTime = new Date(startTimeDate.getTime() + durationSeconds * 1000);
-
-    // Update timer immediately
-    const updateTimer = () => {
-      const now = new Date();
-      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
-      setTimeRemaining(remaining);
-
-      // Clear interval if time is up
-      if (remaining === 0 && timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-
-    // Start interval
-    updateTimer();
-    timerRef.current = setInterval(updateTimer, 100); // Update every 100ms for smooth countdown
-  };
 
   const { data: gameData, loading, error, refetch } = useQuery(GET_GAME_SESSION, {
     variables: { sessionCode },
@@ -63,6 +27,53 @@ function GamePage({ sessionCode, player }) {
     },
   });
 
+  useEffect(() => {
+    // If there's an active question when component mounts (e.g., on rejoin),
+    // check if we need to start the timer
+    if (gameData?.gameSession?.currentQuestion) {
+      const endTimeFromServer = localStorage.getItem('questionEndTime');
+      if (endTimeFromServer) {
+        startTimer(endTimeFromServer);
+      }
+    }
+
+    return () => {
+      // Cleanup timer on unmount
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [gameData]);
+
+  const startTimer = (endTimeStr) => {
+    // Clear any existing timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    // Store end time in localStorage for rejoins
+    localStorage.setItem('questionEndTime', endTimeStr);
+
+    const endTime = new Date(endTimeStr);
+
+    // Update timer immediately
+    const updateTimer = () => {
+      const now = new Date();
+      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+      setTimeRemaining(remaining);
+
+      // Clear interval if time is up
+      if (remaining === 0 && timerRef.current) {
+        clearInterval(timerRef.current);
+        localStorage.removeItem('questionEndTime');
+      }
+    };
+
+    // Start interval
+    updateTimer();
+    timerRef.current = setInterval(updateTimer, 100); // Update every 100ms for smooth countdown
+  };
+
   const handleReceived = (data) => {
     console.log('Received WebSocket message:', data);
     
@@ -72,7 +83,7 @@ function GamePage({ sessionCode, player }) {
         setSelectedAnswer(null);
         setLastAnswerCorrect(null);
         setAnswersSubmitted(0);
-        setTimeRemaining(20);
+        setTimeRemaining(0);
         setFinalScores(null);
         refetch();
         break;
@@ -101,12 +112,13 @@ function GamePage({ sessionCode, player }) {
         refetch();
         break;
       case 'question_timer_start':
-        startTimer(data.data.start_time, data.data.duration_seconds);
+        startTimer(data.data.end_time);
         break;
       case 'question_time_up':
         setTimeRemaining(0);
         if (timerRef.current) {
           clearInterval(timerRef.current);
+          localStorage.removeItem('questionEndTime');
         }
         break;
     }

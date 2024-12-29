@@ -150,7 +150,7 @@ class GameSession < ApplicationRecord
 
   def handle_all_answers_received
     # Wait briefly before moving to next question
-    sleep(3)
+    sleep(1)
     next_question!
   end
 
@@ -212,11 +212,9 @@ class GameSession < ApplicationRecord
   end
 
   def start_question_timer
-    @timer_thread&.exit
-    
-    # Calculate start and end times
+    # Calculate start time
     start_time = Time.current
-    end_time = start_time + 20.seconds
+    end_time = start_time + 10.seconds
 
     # Broadcast the start time to clients
     ActionCable.server.broadcast(
@@ -224,43 +222,16 @@ class GameSession < ApplicationRecord
       {
         event: "question_timer_start",
         data: {
-          start_time: start_time.utc.iso8601(3),
-          duration_seconds: 20
+          end_time: end_time.utc.iso8601(3)
         }
       }
     )
     
-    @timer_thread = Thread.new do
-      begin
-        # Sleep until the end time
-        sleep_duration = [end_time - Time.current, 0].max
-        sleep(sleep_duration)
-        
-        # Time's up - broadcast time up event
-        ActionCable.server.broadcast(
-          "game_session_#{session_code}",
-          {
-            event: "question_time_up",
-            data: {}
-          }
-        )
-
-        # Give players 2 seconds to see their results
-        sleep(2)
-        
-        # Use ActiveRecord::Base.connection_pool.with_connection to ensure safe DB access
-        ActiveRecord::Base.connection_pool.with_connection do
-          # Reload the game session to ensure we have the latest state
-          game_session = GameSession.find_by(id: id)
-          if game_session&.active
-            game_session.next_question!
-          end
-        end
-      rescue StandardError => e
-        Rails.logger.error "Timer thread error: #{e.message}\n#{e.backtrace.join("\n")}"
-      ensure
-        ActiveRecord::Base.connection_pool.release_connection if ActiveRecord::Base.connection_pool.active_connection?
-      end
-    end
+    # Schedule the timer job
+    QuestionTimerJob.perform_in(
+      10.seconds,
+      id,
+      questions_count
+    )
   end
 end
