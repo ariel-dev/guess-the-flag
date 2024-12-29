@@ -10,6 +10,7 @@ function HostView({ isHost = true, onBack }) {
   });
   const [maxQuestions, setMaxQuestions] = useState(10);
   const [hostPlayer, setHostPlayer] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const handleReceived = (data) => {
     console.log('Received WebSocket message:', data);
