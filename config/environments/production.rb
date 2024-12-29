@@ -83,4 +83,14 @@ Rails.application.configure do
 
   # Do not dump schema after migrations.
   config.active_record.dump_schema_after_migration = false
+
+  # Allow ActionCable requests from any origin.
+  config.action_cable.disable_request_forgery_protection = true
+  
+  # Set allowed request origins
+  config.action_cable.allowed_request_origins = [ENV.fetch('CORS_ORIGINS', '*')]
+
+  # Use Redis as the adapter for Action Cable
+  config.action_cable.url = ENV.fetch('REDIS_URL') { 'redis://localhost:6379/1' }
+  config.action_cable.mount_path = '/cable'
 end

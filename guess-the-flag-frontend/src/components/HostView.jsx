@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_GAME_SESSION, GET_GAME_SESSION, START_GAME, CANCEL_GAME_SESSION, REMOVE_PLAYER } from '../graphql/queries';
 import GamePage from './GamePage';
-import { ActionCableConsumer } from 'react-actioncable-provider';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 function HostView({ isHost = true, onBack }) {
   const [sessionCode, setSessionCode] = useState(() => {
@@ -12,7 +12,17 @@ function HostView({ isHost = true, onBack }) {
   const [hostPlayer, setHostPlayer] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
 
-  const handleReceived = (data) => {
+  const {
+    data: sessionData,
+    loading: sessionLoading,
+    error: sessionError,
+    refetch,
+  } = useQuery(GET_GAME_SESSION, {
+    variables: { sessionCode },
+    skip: !sessionCode,
+  });
+
+  const handleReceived = useCallback((data) => {
     console.log('Received WebSocket message:', data);
     switch (data.event) {
       case 'player_joined':
@@ -23,16 +33,13 @@ function HostView({ isHost = true, onBack }) {
         refetch();
         break;
     }
-  };
+  }, [refetch]);
 
-  const {
-    data: sessionData,
-    loading: sessionLoading,
-    error: sessionError,
-    refetch,
-  } = useQuery(GET_GAME_SESSION, {
-    variables: { sessionCode },
-    skip: !sessionCode,
+  // Setup WebSocket connection
+  useWebSocket({
+    sessionCode,
+    onReceived: handleReceived,
+    setWsConnected
   });
 
   // Update hostPlayer when session data changes
@@ -155,13 +162,6 @@ function HostView({ isHost = true, onBack }) {
 
   return (
     <div className="game-container">
-      <ActionCableConsumer
-        channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
-        onConnected={() => setWsConnected(true)}
-        onDisconnected={() => setWsConnected(false)}
-        onReceived={handleReceived}
-      />
-
       <div className="host-layout">
         <div className="host-sidebar">
           <div className="card action-card">

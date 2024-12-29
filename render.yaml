@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: guess-the-flag-backend
+    env: ruby
+    buildCommand: bundle install
+    startCommand: bundle exec rails s
+    envVars:
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: guess-the-flag-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: guess-the-flag-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://guess-the-flag-frontend.onrender.com
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_SERVE_STATIC_FILES
+        value: true
+
+  - type: web
+    name: guess-the-flag-frontend
+    env: static
+    buildCommand: cd guess-the-flag-frontend && npm install && npm run build
+    staticPublishPath: ./guess-the-flag-frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://guess-the-flag-backend.onrender.com
+      - key: VITE_WS_URL
+        value: wss://guess-the-flag-backend.onrender.com/cable
+
+  - type: redis
+    name: guess-the-flag-redis
+    ipAllowList: []
+    plan: free
+
+databases:
+  - name: guess-the-flag-db
+    plan: free 

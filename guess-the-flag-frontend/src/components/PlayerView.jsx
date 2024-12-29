@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { JOIN_GAME_SESSION, MARK_PLAYER_READY, GET_GAME_SESSION, LEAVE_GAME_SESSION } from '../graphql/queries';
-import { ActionCableConsumer } from 'react-actioncable-provider';
 import GamePage from './GamePage';
 import WaitingRoom from './WaitingRoom';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 function PlayerView({ onBack }) {
   const [sessionCode, setSessionCode] = useState('');
@@ -18,16 +18,6 @@ function PlayerView({ onBack }) {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const saveSessionData = (sessionCode, player) => {
-    const sessionData = {
-      sessionCode,
-      playerId: player.id,
-      playerName: player.name
-    };
-    localStorage.setItem('previousSession', JSON.stringify(sessionData));
-    setPreviousSession(sessionData);
-  };
-
   const { data: sessionData, refetch } = useQuery(GET_GAME_SESSION, {
     variables: { sessionCode },
     skip: !sessionCode || !player,
@@ -38,6 +28,31 @@ function PlayerView({ onBack }) {
         setGameStarted(true);
       }
     }
+  });
+
+  const handleReceived = useCallback((data) => {
+    console.log('Received WebSocket message:', data);
+    switch (data.event) {
+      case 'game_started':
+      case 'next_question':
+        setGameStarted(true);
+        refetch();
+        break;
+      case 'game_cancelled':
+        // Show a message to the user that the game has been cancelled
+        setErrorMessage("The host has ended the game session. You can join a new game or return to the menu.");
+        break;
+      default:
+        refetch();
+        break;
+    }
+  }, [refetch, setGameStarted, setErrorMessage]);
+
+  // Setup WebSocket connection
+  useWebSocket({
+    sessionCode,
+    onReceived: handleReceived,
+    setWsConnected
   });
 
   const [joinGame, { loading: joining }] = useMutation(JOIN_GAME_SESSION, {
@@ -87,6 +102,16 @@ function PlayerView({ onBack }) {
       setErrorMessage(error.message);
     },
   });
+
+  const saveSessionData = (sessionCode, player) => {
+    const sessionData = {
+      sessionCode,
+      playerId: player.id,
+      playerName: player.name
+    };
+    localStorage.setItem('previousSession', JSON.stringify(sessionData));
+    setPreviousSession(sessionData);
+  };
 
   const handleJoin = () => {
     if (!sessionCode.trim() || !playerName.trim()) return;
@@ -155,24 +180,6 @@ function PlayerView({ onBack }) {
     });
   };
 
-  const handleReceived = (data) => {
-    console.log('Received WebSocket message:', data);
-    switch (data.event) {
-      case 'game_started':
-      case 'next_question':
-        setGameStarted(true);
-        refetch();
-        break;
-      case 'game_cancelled':
-        // Show a message to the user that the game has been cancelled
-        setErrorMessage("The host has ended the game session. You can join a new game or return to the menu.");
-        break;
-      default:
-        refetch();
-        break;
-    }
-  };
-
   const handleLeaveGame = () => {
     if (!player || !sessionCode) return;
     
@@ -206,21 +213,6 @@ function PlayerView({ onBack }) {
   if (player) {
     return (
       <div className="game-container">
-        <ActionCableConsumer
-          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
-          onConnected={() => {
-            console.log('WebSocket connected');
-            setWsConnected(true);
-          }}
-          onDisconnected={() => {
-            console.log('WebSocket disconnected');
-            setWsConnected(false);
-          }}
-          onReceived={(data) => {
-            console.log('Received WebSocket message:', data);
-            handleReceived(data);
-          }}
-        />
         <div className="header-buttons">
           <button 
             className="back-button"

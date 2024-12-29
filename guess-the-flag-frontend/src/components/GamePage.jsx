@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
-import { ActionCableConsumer } from 'react-actioncable-provider';
 import { GET_GAME_SESSION, SUBMIT_ANSWER } from '../graphql/queries';
 import WaitingRoom from './WaitingRoom';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 function GamePage({ sessionCode, player }) {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -12,6 +12,7 @@ function GamePage({ sessionCode, player }) {
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [finalScores, setFinalScores] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const timerRef = useRef(null);
 
   const { data: gameData, loading, error, refetch } = useQuery(GET_GAME_SESSION, {
@@ -19,33 +20,7 @@ function GamePage({ sessionCode, player }) {
     fetchPolicy: 'network-only',
   });
 
-  const [submitAnswer, { loading: submitting }] = useMutation(SUBMIT_ANSWER, {
-    onCompleted: (data) => {
-      setLastAnswerCorrect(data.submitAnswer.correct);
-      setScore(data.submitAnswer.updatedScore);
-      setSelectedAnswer(null);
-    },
-  });
-
-  useEffect(() => {
-    // If there's an active question when component mounts (e.g., on rejoin),
-    // check if we need to start the timer
-    if (gameData?.gameSession?.currentQuestion) {
-      const endTimeFromServer = localStorage.getItem('questionEndTime');
-      if (endTimeFromServer) {
-        startTimer(endTimeFromServer);
-      }
-    }
-
-    return () => {
-      // Cleanup timer on unmount
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [gameData]);
-
-  const startTimer = (endTimeStr) => {
+  const startTimer = useCallback((endTimeStr) => {
     // Clear any existing timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -72,9 +47,9 @@ function GamePage({ sessionCode, player }) {
     // Start interval
     updateTimer();
     timerRef.current = setInterval(updateTimer, 100); // Update every 100ms for smooth countdown
-  };
+  }, []);
 
-  const handleReceived = (data) => {
+  const handleReceived = useCallback((data) => {
     console.log('Received WebSocket message:', data);
     
     switch (data.event) {
@@ -121,7 +96,40 @@ function GamePage({ sessionCode, player }) {
         }
         break;
     }
-  };
+  }, [player.id, refetch, startTimer]);
+
+  // Setup WebSocket connection
+  useWebSocket({
+    sessionCode,
+    onReceived: handleReceived,
+    setWsConnected
+  });
+
+  const [submitAnswer, { loading: submitting }] = useMutation(SUBMIT_ANSWER, {
+    onCompleted: (data) => {
+      setLastAnswerCorrect(data.submitAnswer.correct);
+      setScore(data.submitAnswer.updatedScore);
+      setSelectedAnswer(null);
+    },
+  });
+
+  useEffect(() => {
+    // If there's an active question when component mounts (e.g., on rejoin),
+    // check if we need to start the timer
+    if (gameData?.gameSession?.currentQuestion) {
+      const endTimeFromServer = localStorage.getItem('questionEndTime');
+      if (endTimeFromServer) {
+        startTimer(endTimeFromServer);
+      }
+    }
+
+    return () => {
+      // Cleanup timer on unmount
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [gameData]);
 
   const handleAnswerSelect = (choice) => {
     if (submitting || selectedAnswer || timeRemaining === 0) return;
@@ -143,10 +151,6 @@ function GamePage({ sessionCode, player }) {
   if (finalScores) {
     return (
       <div className="game-page">
-        <ActionCableConsumer
-          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
-          onReceived={handleReceived}
-        />
         <div className="leaderboard">
           <h2>🏆 Game Over - Final Scores 🏆</h2>
           <div className="final-scores">
@@ -172,15 +176,11 @@ function GamePage({ sessionCode, player }) {
   if (!gameData?.gameSession?.currentQuestion) {
     return (
       <div className="game-page">
-        <ActionCableConsumer
-          channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
-          onReceived={handleReceived}
-        />
         <WaitingRoom
           sessionCode={sessionCode}
           player={player}
           players={gameData?.gameSession?.players}
-          wsConnected={true}
+          wsConnected={wsConnected}
           onMarkReady={() => {}}
           onLeaveGame={() => {}}
           isHost={player.isHost}
@@ -193,11 +193,6 @@ function GamePage({ sessionCode, player }) {
 
   return (
     <div className="game-page">
-      <ActionCableConsumer
-        channel={{ channel: 'GameSessionChannel', session_code: sessionCode }}
-        onReceived={handleReceived}
-      />
-
       <div className="game-content">
         <div className="game-header">
           <div className="score">Score: {score}</div>
