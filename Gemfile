@@ -42,7 +42,6 @@ gem 'graphql', '~> 2.0'
 gem 'sidekiq', '~> 7.0'
 
 # Add these lines
-gem 'redis'
 gem 'hiredis'
 
 group :development, :test do

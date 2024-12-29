@@ -264,7 +264,7 @@ DEPENDENCIES
   puma (~> 5.0)
   rack-cors
   rails (~> 7.0.4)
-  redis
+  redis (~> 5.0)
   rspec-rails (~> 5.0.0)
   sidekiq (~> 7.0)
   spring
