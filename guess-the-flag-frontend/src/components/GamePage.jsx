@@ -96,7 +96,6 @@ function GamePage({ sessionCode, player }) {
           setLastAnswerCorrect(data.data.correct);
           setScore(data.data.score);
         }
-        refetch();
         break;
       case 'game_finished':
         setSelectedAnswer(null);
@@ -203,9 +202,7 @@ function GamePage({ sessionCode, player }) {
           <div className="score">Score: {score}</div>
           <div className="timer">Time: {timeRemaining}s</div>
           <div className="progress">
-            {answersSubmitted > 0 && (
-              <div>Answers submitted: {answersSubmitted}/{totalPlayers}</div>
-            )}
+            {<div>Answers submitted: {answersSubmitted}/{totalPlayers}</div>}
           </div>
         </div>
 

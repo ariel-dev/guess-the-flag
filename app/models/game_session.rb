@@ -149,7 +149,7 @@ class GameSession < ApplicationRecord
   end
 
   def handle_all_answers_received
-    # Wait briefly before moving to next question
+    # Wait briefly before moving to next question to be able to see the answer result
     sleep(1)
     next_question!
   end
