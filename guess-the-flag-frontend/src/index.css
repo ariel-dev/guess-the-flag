@@ -604,4 +604,73 @@ button {
 
 .players-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.copy-button {
+  background: rgba(74, 144, 226, 0.2);
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(74, 144, 226, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.copy-button:hover {
+  background: rgba(74, 144, 226, 0.3);
+  transform: translateY(-2px);
+}
+
+.start-button {
+  background: linear-gradient(45deg, #4a90e2, #67b26f);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  width: 100%;
+  margin: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.start-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.start-button:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  background: linear-gradient(45deg, #e74c3c, #ff6b6b);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  width: 100%;
+  margin: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.cancel-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.session-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 } 
