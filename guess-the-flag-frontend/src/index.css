@@ -683,4 +683,27 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.session-actions .host-button {
+  background: linear-gradient(45deg, #4a90e2, #67b26f);
+  color: white;
+  font-size: 1.1rem;
+  padding: 1.2rem 2rem;
+  border: none;
+  transition: all 0.3s ease;
+  text-align: center;
+  width: 100%;
+}
+
+.session-actions .host-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(103, 178, 111, 0.3);
+}
+
+.session-actions .host-button .button-description {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: 0.5rem;
 } 
